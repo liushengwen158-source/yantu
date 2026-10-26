@@ -1,0 +1,8 @@
+# 本项目的直接依赖目前全部是标准库。
+# openJiuwen agent-core 需要 Python 3.11-3.13，装了 SDK 后再按需补充。
+#
+# 安装基础 SDK：
+#   pip install openjiuwen
+#
+# 模型接入（DeepSeek / Qwen 等 OpenAI 兼容接口）：
+#   pip install openai

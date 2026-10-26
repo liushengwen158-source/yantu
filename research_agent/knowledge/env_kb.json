@@ -1,0 +1,287 @@
+{
+  "version": "0.1.0",
+  "updated": "2026-10-26",
+  "note": "计算机科研入门 · 环境配置知识库。detector 检出问题时按 id 取用 guidance；agent 回答用户时也以此为准，避免模型自由发挥编造命令。",
+  "domains": {
+    "python": "Python 与包管理",
+    "git": "Git 与代码托管",
+    "gpu": "GPU 与深度学习"
+  },
+  "entries": [
+    {
+      "id": "python.missing",
+      "domain": "python",
+      "severity": "blocker",
+      "title": "未找到 Python 解释器",
+      "why": "绝大多数计算机科研（机器学习、数据挖掘、系统实验）都依赖 Python 生态，没有解释器无法开始。",
+      "steps": [
+        {"text": "安装 Python 3.12（3.11–3.13 均可，3.12 生态最稳）", "command": "winget install -e --id Python.Python.3.12", "platform": "win", "confirm": true},
+        {"text": "安装时务必勾选 Add Python to PATH", "platform": "win"},
+        {"text": "Ubuntu/Debian 安装", "command": "sudo apt update && sudo apt install -y python3 python3-pip python3-venv", "platform": "linux", "confirm": true}
+      ],
+      "verify": "python --version",
+      "doc": "python_env.md#安装与版本"
+    },
+    {
+      "id": "python.version.unsupported",
+      "domain": "python",
+      "severity": "blocker",
+      "title": "Python 版本过旧或过新",
+      "why": "科研常用库（PyTorch、numpy 生态）对 Python 版本有硬约束；openJiuwen agent-core 要求 Python 3.11–3.13。低于 3.10 会大量装不上，3.14 及以上的第三方轮子（wheel）覆盖不全。",
+      "steps": [
+        {"text": "推荐使用 3.12：兼顾新特性与轮子覆盖率", "platform": "any"},
+        {"text": "Windows 用 winget 装 3.12 并保留旧版本", "command": "winget install -e --id Python.Python.3.12", "platform": "win", "confirm": true},
+        {"text": "装完后用 py -3.12 显式指定版本，避免默认解释器串味", "command": "py -3.12 --version", "platform": "win"}
+      ],
+      "verify": "python -c \"import sys; print(sys.version_info[:2])\"",
+      "doc": "python_env.md#安装与版本"
+    },
+    {
+      "id": "python.version.freethreaded",
+      "domain": "python",
+      "severity": "warn",
+      "title": "当前解释器是 free-threaded（3.13t）构建",
+      "why": "3.13t 关闭了 GIL，但科学计算栈（numpy、PyTorch、多数 C 扩展）尚未全面提供 3.13t 轮子，pip 常会退回源码编译或直接失败。科研新手不建议用它做默认解释器。",
+      "steps": [
+        {"text": "另装一个标准构建的 3.12 专用于科研项目", "command": "winget install -e --id Python.Python.3.12", "platform": "win", "confirm": true},
+        {"text": "确认当前解释器是否为 t 版：输出含 free-threading 即为 t 版本", "command": "python -c \"import sys; print(sys._is_gil_enabled() if hasattr(sys,'_is_gil_enabled') else 'standard')\"", "platform": "any"}
+      ],
+      "verify": "python -c \"import sys; print(sys.abiflags)\"",
+      "doc": "python_env.md#安装与版本"
+    },
+    {
+      "id": "python.multi_install",
+      "domain": "python",
+      "severity": "warn",
+      "title": "系统存在多个 Python 安装",
+      "why": "多个解释器共存时，pip 装的包和 python 运行的包可能不是同一个，典型症状是 pip install 成功但 import 失败。",
+      "steps": [
+        {"text": "列出所有解释器及其路径", "command": "py -0p", "platform": "win"},
+        {"text": "统一用绝对路径或 py -3.12 调用，不用裸 python", "platform": "any"},
+        {"text": "检查 pip 绑定的解释器", "command": "python -m pip --version", "platform": "any"}
+      ],
+      "verify": "python -m pip --version",
+      "doc": "python_env.md#多解释器共存"
+    },
+    {
+      "id": "pip.missing",
+      "domain": "python",
+      "severity": "blocker",
+      "title": "pip 不可用",
+      "why": "无法安装任何第三方库。",
+      "steps": [
+        {"text": "用 ensurepip 引导安装", "command": "python -m ensurepip --upgrade", "platform": "any", "confirm": true},
+        {"text": "或下载 get-pip.py 后执行", "command": "curl -O https://bootstrap.pypa.io/get-pip.py && python get-pip.py", "platform": "any", "confirm": true}
+      ],
+      "verify": "python -m pip --version",
+      "doc": "python_env.md#pip-异常"
+    },
+    {
+      "id": "pip.mismatch",
+      "domain": "python",
+      "severity": "warn",
+      "title": "pip 与当前 python 不是同一套环境",
+      "why": "pip 指向的解释器与 python 不同时，会出现「装了却 import 不到」。临时绕过可在 PATH 里追加别名，但根治是给每个项目建独立虚拟环境。",
+      "steps": [
+        {"text": "始终用 python -m pip 而不是裸 pip", "command": "python -m pip install <包名>", "platform": "any"},
+        {"text": "为项目建独立虚拟环境（推荐）", "command": "python -m venv .venv", "platform": "any"},
+        {"text": "Windows 激活虚拟环境", "command": ".venv\\Scripts\\activate", "platform": "win"},
+        {"text": "Linux/macOS 激活虚拟环境", "command": "source .venv/bin/activate", "platform": "linux"}
+      ],
+      "verify": "python -c \"import sys; print(sys.prefix)\"",
+      "doc": "python_env.md#虚拟环境"
+    },
+    {
+      "id": "pip.index.default",
+      "domain": "python",
+      "severity": "warn",
+      "title": "pip 未配置国内镜像源",
+      "why": "国内直连 PyPI 下载大包（torch、transformers）常只有几十 KB/s 甚至中断。配镜像能把安装时间从小时级降到分钟级。",
+      "steps": [
+        {"text": "全局配置清华源", "command": "python -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple", "platform": "any", "confirm": true},
+        {"text": "设置超时与重试，减少大包中断", "command": "python -m pip config set global.timeout 120", "platform": "any", "confirm": true},
+        {"text": "备选：阿里云镜像", "command": "python -m pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/", "platform": "any", "confirm": true}
+      ],
+      "verify": "python -m pip config list",
+      "doc": "python_env.md#镜像源"
+    },
+    {
+      "id": "venv.missing",
+      "domain": "python",
+      "severity": "warn",
+      "title": "venv 模块不可用",
+      "why": "无法创建项目级隔离环境，容易污染系统 Python。Linux 上通常是没装 python3-venv 包。",
+      "steps": [
+        {"text": "Debian/Ubuntu 安装 venv 支持", "command": "sudo apt install -y python3-venv", "platform": "linux", "confirm": true}
+      ],
+      "verify": "python -m venv --help",
+      "doc": "python_env.md#虚拟环境"
+    },
+    {
+      "id": "conda.missing",
+      "domain": "python",
+      "severity": "info",
+      "title": "未安装 conda",
+      "why": "conda 不是必需项，但科研里做多 CUDA 版本共存、复现他人环境（environment.yml）时很方便。可以用 venv 替代，不强求。",
+      "steps": [
+        {"text": "推荐轻量的 Miniforge（自带 conda-forge 源）", "command": "winget install -e --id CondaForge.Miniforge3", "platform": "win", "confirm": true},
+        {"text": "Linux 安装脚本", "command": "curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh && bash Miniforge3-Linux-x86_64.sh", "platform": "linux", "confirm": true}
+      ],
+      "verify": "conda --version",
+      "doc": "python_env.md#conda"
+    },
+    {
+      "id": "git.missing",
+      "domain": "git",
+      "severity": "blocker",
+      "title": "未安装 Git",
+      "why": "科研协作、复现代码、版本管理都依赖 Git；同时多数开源库的安装也需要它（pip 从 git 源安装、源码编译）。",
+      "steps": [
+        {"text": "Windows 用 winget 安装", "command": "winget install -e --id Git.Git", "platform": "win", "confirm": true},
+        {"text": "Ubuntu/Debian 安装", "command": "sudo apt install -y git", "platform": "linux", "confirm": true},
+        {"text": "装完检查换行策略（Windows 建议 false，避免跨平台 diff 满屏）", "command": "git config --global core.autocrlf false", "platform": "win", "confirm": true}
+      ],
+      "verify": "git --version",
+      "doc": "git.md#安装"
+    },
+    {
+      "id": "git.identity.missing",
+      "domain": "git",
+      "severity": "warn",
+      "title": "Git 未配置用户名或邮箱",
+      "why": "没有身份信息时无法提交，部分平台（GitHub）还要求邮箱与账号匹配才能正确归属提交。",
+      "steps": [
+        {"text": "配置全局用户名", "command": "git config --global user.name \"你的名字\"", "platform": "any", "confirm": true},
+        {"text": "配置全局邮箱（建议与 GitHub 账号一致）", "command": "git config --global user.email \"you@example.com\"", "platform": "any", "confirm": true}
+      ],
+      "verify": "git config --global --list",
+      "doc": "git.md#首次配置"
+    },
+    {
+      "id": "git.ssh.missing",
+      "domain": "git",
+      "severity": "info",
+      "title": "未发现 SSH 密钥",
+      "why": "用 SSH 拉私有仓库免去每次输密码；后续连服务器、连 GPU 机器也常用 SSH。",
+      "steps": [
+        {"text": "生成 ed25519 密钥（一路回车即可）", "command": "ssh-keygen -t ed25519 -C \"you@example.com\"", "platform": "any", "confirm": true},
+        {"text": "查看公钥并复制到 GitHub → Settings → SSH and GPG keys", "command": "cat ~/.ssh/id_ed25519.pub", "platform": "any"},
+        {"text": "测试连通性", "command": "ssh -T git@github.com", "platform": "any"}
+      ],
+      "verify": "ls ~/.ssh/*.pub",
+      "doc": "git.md#ssh-密钥"
+    },
+    {
+      "id": "git.github.unreachable",
+      "domain": "git",
+      "severity": "warn",
+      "title": "访问 GitHub 超时或 TLS 失败",
+      "why": "国内网络访问 GitHub 经常握手失败。会影响 clone、pip 从 git 安装、拉取模型权重。",
+      "steps": [
+        {"text": "优先用国内镜像：gitcode / atomgit / gitee 上搜同名仓库", "platform": "any"},
+        {"text": "给 git 配置代理（端口按自己的代理软件改）", "command": "git config --global http.proxy http://127.0.0.1:7890", "platform": "any", "confirm": true},
+        {"text": "取消代理", "command": "git config --global --unset http.proxy", "platform": "any", "confirm": true},
+        {"text": "大仓库用浅克隆省时间", "command": "git clone --depth 1 <url>", "platform": "any"}
+      ],
+      "verify": "git ls-remote --heads https://gitcode.com/openJiuwen/agent-core.git",
+      "doc": "git.md#网络问题"
+    },
+    {
+      "id": "gpu.nvidia_smi.missing",
+      "domain": "gpu",
+      "severity": "info",
+      "title": "未检测到 nvidia-smi（无 NVIDIA GPU 或驱动未装）",
+      "why": "没有可用 GPU 时深度学习只能跑 CPU：训练会慢几十倍，但入门阶段读论文、跑小实验仍可行。",
+      "steps": [
+        {"text": "确认机器是否有 NVIDIA 显卡（Windows 设备管理器 → 显示适配器）", "platform": "any"},
+        {"text": "有卡则安装对应驱动，装完重启", "platform": "any", "confirm": true},
+        {"text": "无卡时改用云 GPU：AutoDL、恒源云、Colab 都是常见选择", "platform": "any"}
+      ],
+      "verify": "nvidia-smi",
+      "doc": "gpu_dl.md#显卡与驱动"
+    },
+    {
+      "id": "gpu.driver.old",
+      "domain": "gpu",
+      "severity": "warn",
+      "title": "GPU 驱动较旧，可能不支持新版 CUDA",
+      "why": "驱动版本决定能跑的最高 CUDA 版本。驱动过旧时装新 PyTorch 会出现 CUDA 初始化失败。",
+      "steps": [
+        {"text": "查看驱动支持的 CUDA 版本（右上角 CUDA Version）", "command": "nvidia-smi", "platform": "any"},
+        {"text": "更新 NVIDIA 驱动（Windows 用官网驱动或 GeForce Experience）", "platform": "win", "confirm": true},
+        {"text": "Linux 用包管理器升级", "command": "sudo apt install -y nvidia-driver-550", "platform": "linux", "confirm": true}
+      ],
+      "verify": "nvidia-smi --query-gpu=driver_version --format=csv",
+      "doc": "gpu_dl.md#cuda-与驱动的版本关系"
+    },
+    {
+      "id": "gpu.cuda_toolkit.missing",
+      "domain": "gpu",
+      "severity": "info",
+      "title": "未找到 nvcc（未装 CUDA Toolkit）",
+      "why": "只用 PyTorch 时通常不需要单独装 CUDA Toolkit——pip 装的 torch 自带 CUDA 运行时。只有需要编译自定义算子（如 flash-attn、apex）时才需要 nvcc。",
+      "steps": [
+        {"text": "先确认 pip 版 torch 是否已能用 CUDA", "command": "python -c \"import torch; print(torch.cuda.is_available())\"", "platform": "any"},
+        {"text": "确实需要编译算子时再装 Toolkit，版本与 torch 的 cu 版本保持一致", "platform": "any", "confirm": true}
+      ],
+      "verify": "nvcc --version",
+      "doc": "gpu_dl.md#cuda-与驱动的版本关系"
+    },
+    {
+      "id": "gpu.torch.missing",
+      "domain": "gpu",
+      "severity": "info",
+      "title": "未安装 PyTorch",
+      "why": "PyTorch 是深度学习科研的事实标准框架，入门阶段第一件要装的大件。",
+      "steps": [
+        {"text": "有 NVIDIA 卡时装 CUDA 版（cu124 适配面最广）", "command": "python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124", "platform": "any", "confirm": true},
+        {"text": "国内网络慢时用清华源装 CPU 版或走代理", "command": "python -m pip install torch torchvision -i https://pypi.tuna.tsinghua.edu.cn/simple", "platform": "any", "confirm": true},
+        {"text": "验证安装", "command": "python -c \"import torch; print(torch.__version__, torch.cuda.is_available())\"", "platform": "any"}
+      ],
+      "verify": "python -c \"import torch; print(torch.__version__)\"",
+      "doc": "gpu_dl.md#pytorch-安装"
+    },
+    {
+      "id": "gpu.torch.cpu_only",
+      "domain": "gpu",
+      "severity": "warn",
+      "title": "已装 PyTorch 但为 CPU 版本",
+      "why": "机器有 NVIDIA 卡却装了 CPU 版 torch，torch.cuda.is_available() 恒为 False，训练速度差一到两个数量级。这是新手最常见的一个坑。",
+      "steps": [
+        {"text": "先卸载 CPU 版", "command": "python -m pip uninstall -y torch torchvision torchaudio", "platform": "any", "confirm": true},
+        {"text": "再装 CUDA 版", "command": "python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124", "platform": "any", "confirm": true},
+        {"text": "验证 cuda 可用", "command": "python -c \"import torch; print(torch.cuda.is_available(), torch.version.cuda)\"", "platform": "any"}
+      ],
+      "verify": "python -c \"import torch; print(torch.cuda.is_available())\"",
+      "doc": "gpu_dl.md#pytorch-安装"
+    },
+    {
+      "id": "gpu.torch.cuda_mismatch",
+      "domain": "gpu",
+      "severity": "warn",
+      "title": "PyTorch 的 CUDA 版本高于驱动支持",
+      "why": "驱动只向后兼容到一定 CUDA 版本。torch 编译时用的 CUDA 版本高于驱动上限时，import 能过但一跑 cuda 操作就报 CUDA driver version is insufficient。",
+      "steps": [
+        {"text": "查看 torch 编译时的 CUDA 版本", "command": "python -c \"import torch; print(torch.version.cuda)\"", "platform": "any"},
+        {"text": "查看驱动支持的 CUDA 版本", "command": "nvidia-smi", "platform": "any"},
+        {"text": "升级驱动，或改装与驱动匹配的 torch cu 版本（cu118/cu121/cu124/cu126）", "platform": "any", "confirm": true}
+      ],
+      "verify": "python -c \"import torch; torch.zeros(1).cuda(); print('cuda ok')\"",
+      "doc": "gpu_dl.md#cuda-与驱动的版本关系"
+    },
+    {
+      "id": "gpu.vram.small",
+      "domain": "gpu",
+      "severity": "info",
+      "title": "显存较小（≤8GB）",
+      "why": "入门阶段够用（跑通 MNIST/CIFAR、微调小模型），但训练大模型会 OOM。提前知道限制能少走弯路。",
+      "steps": [
+        {"text": "训练时用混合精度省显存", "command": "python -c \"import torch; from torch.cuda.amp import autocast; print('amp ok')\"", "platform": "any"},
+        {"text": "显存不够时减小 batch size 或使用梯度累积", "platform": "any"},
+        {"text": "需要更大显存时租云 GPU（AutoDL 等按小时计费）", "platform": "any"}
+      ],
+      "verify": "nvidia-smi --query-gpu=memory.total --format=csv",
+      "doc": "gpu_dl.md#显存与常见-oom"
+    }
+  ]
+}
