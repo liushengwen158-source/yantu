@@ -89,16 +89,38 @@ git clone --depth 1 https://github.com/openJiuwen-ai/agent-core.git openjiuwen
 
 ### 适配层
 
-`research_agent/agent_core.py` 把环境能力注册成一个 ReAct agent：
+`research_agent/agent_core.py` 把两类能力注册成一个 ReAct agent（`yantu_agent`），共 8 个工具：
 
-- 用 `@tool` 把 5 个函数变成 `LocalFunction`（env_check / env_guidance / env_explain / env_plan / env_fix）
+| 分组 | 工具 | 作用 |
+| --- | --- | --- |
+| 环境 | `env_check` | 体检本机环境，返回真实状态与就绪度 |
+| 环境 | `env_guidance` | 按「阻塞 > 注意 > 建议」列出问题与步骤 |
+| 环境 | `env_explain` | 解释单个检测项的原因与修法 |
+| 环境 | `env_plan` | 生成修复命令清单（不执行） |
+| 环境 | `env_fix` | 执行一条修复命令，`system` 级需明确同意 |
+| 复现 | `repro_scan` | 从论文仓库提取环境需求（带文件名:行号） |
+| 复现 | `repro_diff` | 与本机比对，给四档结论与差距矩阵 |
+| 复现 | `repro_report` | 生成完整的 Markdown 可行性报告 |
+
+实现方式：
+
+- 用 `@tool` 把纯函数变成 `LocalFunction`，schema 由函数签名与 docstring 推导
 - `ReActAgent(card=AgentCard(...))` + `ReActAgentConfig` 配置模型与系统提示词
 - `agent.ability_manager.add_ability(t.card, t)` 注册工具
 
-已验证：agent 构建成功，5 个工具全部注册进 ability_manager 与 resource_mgr，
-且模块从本地 clone 源码加载。
+系统提示词里写死了两条行为约束，避免模型即兴发挥：
 
-工具函数本体在 `research_agent/tools/env_tools.py`，是纯 Python，可脱离框架单独测试。
+- 问「这篇论文的代码我能不能跑」→ 先调 `repro_diff`，不许凭经验判断
+- 引用复现结论必须带来源（`README.md:5`）和可信度（L2/L3）；仓库里没写的，直说没写
+
+已验证：agent 构建成功，8 个工具全部注册进 `ability_manager` 与 `resource_mgr`：
+
+```
+names = ['env_check', 'env_guidance', 'env_explain', 'env_plan', 'env_fix',
+         'repro_scan', 'repro_diff', 'repro_report']
+```
+
+工具函数本体分别在 `tools/env_tools.py` 与 `tools/repro_tools.py`，都是纯 Python，可脱离框架单独测试。
 
 ## 作为技能使用
 
@@ -190,6 +212,20 @@ cuda.required   需要      1 卡 / CUDA 12.7  OK         Dockerfile:1 (L2)
 python -m unittest discover -s tests -v
 ```
 
+### 在 agent 里用
+
+复现能力已经接进 agent，不需要记命令行：
+
+> **你**：我 clone 了一篇论文的代码在 `D:\papers\xxx`，我这台机器能跑吗？
+>
+> **agent**：调 `repro_diff` → 读差距矩阵 → 回答「能/不能，卡在哪，要花多少钱或改什么」
+
+工具层的三条约定：
+
+- 返回 `dict` 且**不抛异常**，出错时把原因和 `hint` 写进返回值，模型能读懂并转述
+- 传入 URL 会被拒绝并提示先 `git clone`（扫描需要本地文件）
+- 长文本有截断上限，`repro_report` 返回的 Markdown 限 8000 字符，超出会标 `truncated`
+
 ### 边界
 
 - 只解析仓库文件，**不读论文 PDF**，所以「论文说需要 4 张 V100」这类信息接不进来
@@ -222,7 +258,8 @@ yantu/
 │   │   ├── diff.py                # 四档判定 + 修复建议
 │   │   └── render.py              # 差距矩阵 / Markdown 报告
 │   ├── tools/env_tools.py         # 纯 Python 工具函数（可单独测试）
-│   ├── agent_core.py              # openJiuwen 适配层（ReActAgent + 5 个工具）
+│   ├── tools/repro_tools.py       # 复现工具函数（agent 用）
+│   ├── agent_core.py              # openJiuwen 适配层（ReActAgent + 8 个工具）
 │   ├── agent.py                   # 问答层（有 Key 走模型，无 Key 走检索）
 │   └── llm.py                     # OpenAI 兼容客户端
 ├── skills/env-setup/              # 可被 JiuwenSwarm 直接调用的技能包
@@ -273,8 +310,9 @@ yantu/
 ## 后续路线
 
 - [x] 论文复现可行性：从配套代码提取环境需求，与本机比对给出四档结论
+- [x] 复现能力接进 agent 工具层（repro_scan / repro_diff / repro_report）
 - [ ] 论文 PDF 解析：把正文里的「we train on 8×A100」也纳入需求（当前只认代码）
-- [ ] 复现需求接进 agent 工具层（现在只有 CLI）
+- [ ] 复现能力做成 JiuwenSwarm 技能（现在只有 CLI + agent 工具）
 - [ ] 环境快照对比（两次检测的 diff，看修复是否生效）
 - [ ] 文献阅读模块：arXiv 检索、论文速读、笔记沉淀
 - [ ] 实验管理：跑通 baseline、记录超参、复现他人结果

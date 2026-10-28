@@ -107,5 +107,57 @@ class TestDiff(unittest.TestCase):
         self.assertIn("可行性", text)
 
 
+class TestReproTools(unittest.TestCase):
+    """agent 工具层：必须返回 dict 且不抛异常。"""
+
+    def test_scan_returns_dict(self):
+        from research_agent.tools.repro_tools import repro_scan
+
+        out = repro_scan(str(FIXTURES / "repo_a"))
+        self.assertTrue(out["ok"])
+        self.assertGreaterEqual(out["count"], 4)
+        for item in out["requirements"]:
+            self.assertTrue(item["evidence"], "工具返回的需求必须带来源")
+            self.assertIn(item["level"], ("L1", "L2", "L3"))
+
+    def test_diff_returns_verdicts(self):
+        from research_agent.tools.repro_tools import repro_diff
+
+        out = repro_diff(str(FIXTURES / "repo_a"))
+        self.assertTrue(out["ok"])
+        self.assertIn(out["overall"], ("block", "conflict", "degrade", "add", "unknown", "ok"))
+        self.assertIn("text", out)
+        ids = {i["id"] for i in out["items"]}
+        self.assertIn("gpu.count", ids)
+
+    def test_report_renders(self):
+        from research_agent.tools.repro_tools import repro_report
+
+        out = repro_report(str(FIXTURES / "repo_a"))
+        self.assertTrue(out["ok"])
+        self.assertIn("论文复现可行性报告", out["text"])
+
+    def test_errors_do_not_raise(self):
+        from research_agent.tools import repro_tools
+
+        missing = repro_tools.repro_diff("这是不存在的路径")
+        self.assertFalse(missing["ok"])
+        self.assertIn("hint", missing)
+
+        url = repro_tools.repro_scan("https://github.com/example/repo")
+        self.assertFalse(url["ok"])
+
+        empty = repro_tools.repro_report("")
+        self.assertFalse(empty["ok"])
+
+    def test_tool_registry_complete(self):
+        from research_agent.tools.repro_tools import REPRO_TOOL_FUNCTIONS
+
+        self.assertEqual(
+            set(REPRO_TOOL_FUNCTIONS),
+            {"repro_scan", "repro_diff", "repro_report"},
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

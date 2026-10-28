@@ -19,22 +19,31 @@ from typing import Any
 
 from . import llm
 from .tools.env_tools import env_check, env_explain, env_fix, env_guidance, env_plan
+from .tools.repro_tools import repro_diff, repro_report, repro_scan
 
-SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，当前负责**开发环境配置**。
+SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，负责两件事：**开发环境配置**与**论文复现可行性判断**。
 
-你的工具：
+环境工具：
 - env_check：体检本机环境，返回 Python/pip/conda/Git/SSH/GPU/CUDA/PyTorch 的真实状态
 - env_guidance：按严重程度列出需要处理的问题和处理步骤
 - env_explain：解释某个具体检测项的原因与修法
 - env_plan：生成修复命令清单（不执行）
 - env_fix：执行一条修复命令，system 级（安装/卸载软件）必须得到用户明确同意
 
+复现工具（需要用户提供论文配套代码在本机的目录）：
+- repro_scan：从仓库文件提取环境需求，每条都带「文件名:行号」来源
+- repro_diff：把需求与本机比对，给出四档结论：block 物理不可能 / degrade 改配置能跑 / add 装一下即可 / ok 满足
+- repro_report：输出完整的 Markdown 可行性报告
+
 工作方式：
 1. 用户问环境问题时，先 env_check 或 env_guidance 拿到事实，再回答，不要凭印象猜测。
-2. 给命令前确认它适用于用户的操作系统。
-3. 要执行安装/卸载类命令时，先把命令和影响告诉用户，等用户明确说要执行再调用 env_fix 并传 approve_system=true。
-4. 回答简洁：先结论，再步骤，命令用代码块。
-5. 检测结果里没有的信息，直说不知道，不要编造版本号或命令。
+2. 用户问「这篇论文的代码我能不能跑」时，先 repro_diff，不要凭经验判断。
+3. 给命令前确认它适用于用户的操作系统。
+4. 要执行安装/卸载类命令时，先把命令和影响告诉用户，等用户明确说要执行再调用 env_fix 并传 approve_system=true。
+5. 复现结论要分清程度：卡数不够、显存差 6 倍以上属于物理阻塞，直说要换算力；版本不符属于装一下就好，别夸大。
+6. 引用复现证据时带上来源（如 README.md:5）和可信度（L2 代码推断 / L3 经验推测）。
+7. 仓库里没写、工具没返回的信息，直说不知道，不要编造版本号、卡数或命令。
+8. 回答简洁：先结论，再步骤，命令用代码块。
 """
 
 
@@ -47,7 +56,7 @@ def _dump(payload: Any, limit: int = 6000) -> str:
 
 
 def build_tools():
-    """构造 5 个 LocalFunction 工具。"""
+    """构造全部 LocalFunction 工具（5 个环境 + 3 个复现）。"""
     from openjiuwen.core.foundation.tool import tool
 
     @tool(
@@ -115,7 +124,63 @@ def build_tools():
         """
         return _dump(env_fix(command=command, approve_system=approve_system))
 
-    return [env_check_tool, env_guidance_tool, env_explain_tool, env_plan_tool, env_fix_tool]
+    # ---- 论文复现 ------------------------------------------------------
+
+    @tool(
+        name="repro_scan",
+        description=(
+            "从论文配套代码目录提取环境需求（Python 版本、框架版本、CUDA、GPU 卡数与显存）。"
+            "解析 Dockerfile、environment.yml、requirements.txt、pyproject.toml、"
+            ".python-version、README。每条需求都带文件名:行号来源，无来源的会被丢弃。"
+        ),
+    )
+    def repro_scan_tool(repo_path: str) -> str:
+        """提取论文仓库的环境需求。
+
+        Args:
+            repo_path: 论文配套代码在本机的目录路径，不能是 URL
+        """
+        return _dump(repro_scan(repo_path))
+
+    @tool(
+        name="repro_diff",
+        description=(
+            "把论文的环境需求与本机环境比对，给出四档可行性结论："
+            "block（物理不可能，需换硬件）、degrade（改 batch/精度才能跑）、"
+            "add（装一下或换版本即可）、ok（满足）。附差距矩阵和处理建议。"
+            "用户问「这篇论文的代码我能不能跑」时用这个。"
+        ),
+    )
+    def repro_diff_tool(repo_path: str) -> str:
+        """比对论文需求与本机环境。
+
+        Args:
+            repo_path: 论文配套代码在本机的目录路径，不能是 URL
+        """
+        return _dump(repro_diff(repo_path))
+
+    @tool(
+        name="repro_report",
+        description="生成完整的论文复现可行性报告（Markdown），含差距矩阵、逐项证据与处理建议。",
+    )
+    def repro_report_tool(repo_path: str) -> str:
+        """生成 Markdown 可行性报告。
+
+        Args:
+            repo_path: 论文配套代码在本机的目录路径，不能是 URL
+        """
+        return _dump(repro_report(repo_path), limit=8000)
+
+    return [
+        env_check_tool,
+        env_guidance_tool,
+        env_explain_tool,
+        env_plan_tool,
+        env_fix_tool,
+        repro_scan_tool,
+        repro_diff_tool,
+        repro_report_tool,
+    ]
 
 
 def build_agent(
@@ -143,8 +208,8 @@ def build_agent(
         )
 
     card = AgentCard(
-        name="yantu_env_agent",
-        description="计算机科研入门助手，负责开发环境配置的诊断与修复",
+        name="yantu_agent",
+        description="计算机科研入门助手：开发环境诊断与修复、论文复现可行性判断",
         input_params={
             "type": "object",
             "properties": {"query": {"type": "string", "description": "用户的问题"}},
