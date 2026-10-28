@@ -2,7 +2,10 @@
 
 面向计算机专业本科生 / 低年级研究生的科研入门 agent，基于 [openJiuwen](https://openjiuwen.com) agent-core 构建。
 
-当前阶段完成第一个能力模块：**环境配置**（检测 → 指引 → 可执行安装）。
+当前完成两个能力模块：
+
+1. **环境配置**（可运行的代码 + 技能）：检测 → 指引 → 可执行安装
+2. **论文复现可行性**（可运行的代码）：从我有什么 → 论文要什么 → 差在哪
 
 ## 它解决什么问题
 
@@ -44,6 +47,15 @@ python cli.py fix --yes
 
 # 就具体问题提问：配了 API Key 走 ReAct agent，没配则走知识库检索
 .venv/Scripts/python.exe cli.py ask "torch 装上了但 cuda 不可用"
+
+# 论文复现：从配套代码里提取环境需求
+python cli.py paper scan /path/to/repo
+
+# 与本机环境比对，输出差距矩阵
+python cli.py paper diff /path/to/repo
+
+# 输出完整可行性报告（Markdown）
+python cli.py paper report /path/to/repo --out report.md
 ```
 
 ### 接入模型
@@ -109,6 +121,82 @@ python <skill_dir>/scripts/env_setup.py explain torch.installed
 能力本体只有一份，不会与项目代码漂移。
 
 
+## 论文复现可行性
+
+读一篇论文想跑通它的代码，第一步不是 `pip install -r`，而是搞清楚**它要什么、你有什么、差在哪、差的部分能不能补**。这个模块做这件事。
+
+### 两个对称对象
+
+```
+PaperEnvSpec      论文仓库要什么        ← scan_repo()
+LocalEnvProfile   本机有什么            ← collect_profile()
+        ↓ diff()
+FeasibilityReport 差在哪、能不能补
+```
+
+### 需求从哪来（只采信确定性证据）
+
+| 来源文件 | 提取内容 | 证据级别 |
+| --- | --- | --- |
+| `Dockerfile` | `FROM nvidia/cuda:X.Y` → CUDA 版本、Python 版本、`pip install` 里的框架版本 | L2 |
+| `environment.yml` | `python=x.y`、`torch=x.y`、`cudatoolkit` | L2 |
+| `requirements.txt` | `torch==2.4.0` 等框架版本 | L2 |
+| `pyproject.toml` | `requires-python` | L2 |
+| `.python-version` / `runtime.txt` | Python 版本 | L2 |
+| `README` | `8×A100` → 卡数；型号 → 显存（型号折算属推测） | L2 / L3 |
+
+每条需求都带 `文件名:行号`。**没有来源的需求直接丢弃**，不进报告——这是防编造的地基。
+论文正文里的环境描述尚未接入（需要 PDF 解析），报告会明确写出这个边界。
+
+### 四档判定
+
+| 判定 | 含义 | 典型触发 |
+| --- | --- | --- |
+| `BLOCK` | 物理上不可能 | 要 8 卡只有 1 卡；要 40GB 显存只有 6GB（差 6 倍以上）；需求 CUDA 高于驱动支持 |
+| `DEGRADE` | 改配置能跑 | 显存差 2～6 倍，减小 batch / 开 amp / LoRA 可弥补 |
+| `ADD` | 装一下就好 | 框架未装、版本不符、Python 版本不符 |
+| `OK` | 满足 | — |
+| `UNKNOWN` | 信息不足 | 未探测的框架，不假装满足 |
+| `CONFLICT` | 需求自相矛盾 | `torch==2.4` 但 Dockerfile 指定 CUDA 11.7（torch 2.4 只有 cu118/121/124） |
+
+最终结论取最严重的一项。
+
+### 建议命令的一致性
+
+安装建议会**对齐仓库声明的 CUDA**，而不是本机最高版本。
+例如仓库声明 CUDA 11.8 + torch 2.4.0，建议就是 `cu118`；不会出现「CUDA 说 11.8、torch 让装 cu124」的矛盾。
+
+### 已验证
+
+```
+$ python cli.py paper diff tests/fixtures/repo_a
+
+需求项          论文要求  本机              判定       证据
+--------------  --------  ----------------  ---------  ----------------------
+gpu.count       >= 8 卡   1 卡              BLOCK      README.md:5 (L2)
+gpu.vram        >= 40 GB  6 GB              BLOCK      README.md:5 (L3)
+cuda            == 11.8   12.8              ADD        Dockerfile:1 (L2)
+torch.version   == 2.4.0  2.11.0+cu128      ADD        Dockerfile:3 (L2)
+python.version  == 3.9.7  3.13.4            ADD        .python-version:1 (L2)
+cuda.required   需要      1 卡 / CUDA 12.7  OK         Dockerfile:1 (L2)
+
+结论：阻塞 2 · 冲突 0 · 需降级 0 · 可补齐 3 · 待确认 0 · 满足 1
+可行性：阻塞（BLOCK）—— 存在物理阻塞（gpu.count、gpu.vram），需更换算力
+```
+
+回归测试（12 项，含版本约束、需求提取、冲突检测、判定规则）：
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+### 边界
+
+- 只解析仓库文件，**不读论文 PDF**，所以「论文说需要 4 张 V100」这类信息接不进来
+- GPU 显存从型号折算（A100 → 40GB）时标 L3，A100 实际有 40/80 两版，可能偏差
+- `torch` 之外只对 `tensorflow` / `jax` 等做了版本提取，判定侧目前只探测了 torch 的安装情况
+- 不做依赖求解（`pip` 冲突、conda 环境解析交给专门工具）
+
 ## 目录结构
 
 ```
@@ -126,6 +214,13 @@ yantu/
 │   │   ├── detector.py            # 判定逻辑 + 知识库加载
 │   │   ├── advisor.py             # 指引生成 + 报告渲染
 │   │   └── installer.py           # 分级执行
+│   ├── repro/                     # 论文复现可行性
+│   │   ├── spec.py                # 数据契约（需求 / 画像 / 报告 / 证据）
+│   │   ├── version.py             # 版本约束判断（零依赖）
+│   │   ├── scanner.py             # 仓库 → 环境需求（带文件名行号）
+│   │   ├── profile.py             # 本机 → 画像（含磁盘/内存/容器）
+│   │   ├── diff.py                # 四档判定 + 修复建议
+│   │   └── render.py              # 差距矩阵 / Markdown 报告
 │   ├── tools/env_tools.py         # 纯 Python 工具函数（可单独测试）
 │   ├── agent_core.py              # openJiuwen 适配层（ReActAgent + 5 个工具）
 │   ├── agent.py                   # 问答层（有 Key 走模型，无 Key 走检索）
@@ -133,6 +228,9 @@ yantu/
 ├── skills/env-setup/              # 可被 JiuwenSwarm 直接调用的技能包
 │   ├── SKILL.md
 │   └── scripts/env_setup.py
+├── tests/
+│   ├── fixtures/                  # 回归用的仓库样本
+│   └── test_repro.py              # 12 项单元测试
 └── cli.py                         # 命令行入口
 ```
 
@@ -158,6 +256,12 @@ yantu/
 
 知识库每条步骤带 `platform` 字段（`win` / `linux` / `any`），生成建议时按当前系统过滤。Windows 用户不会看到 `sudo apt install`。
 
+### 为什么复现需求必须带行号
+
+模型很容易"记得"某篇论文是 8 卡训练，但记得不等于对。所以复现模块里每一条需求都必须能指回 `文件名:行号`，否则直接丢弃，宁可在报告里说"信息不足"。
+
+同理，判定只说两种话：「本机 6GB，需要 40GB，差 6.7 倍」和「无法判断」。前者可核对，后者诚实。
+
 ## 已验证的真实案例
 
 在本机（Windows 11 + RTX 4050 6GB）跑出的结果：
@@ -168,6 +272,9 @@ yantu/
 
 ## 后续路线
 
+- [x] 论文复现可行性：从配套代码提取环境需求，与本机比对给出四档结论
+- [ ] 论文 PDF 解析：把正文里的「we train on 8×A100」也纳入需求（当前只认代码）
+- [ ] 复现需求接进 agent 工具层（现在只有 CLI）
 - [ ] 环境快照对比（两次检测的 diff，看修复是否生效）
 - [ ] 文献阅读模块：arXiv 检索、论文速读、笔记沉淀
 - [ ] 实验管理：跑通 baseline、记录超参、复现他人结果

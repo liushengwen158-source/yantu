@@ -93,6 +93,58 @@ def _ensure_console_encoding() -> None:
             pass
 
 
+# ---------------------------------------------------------------------------
+# 论文复现
+# ---------------------------------------------------------------------------
+
+def cmd_paper_scan(args: argparse.Namespace) -> int:
+    from research_agent.repro import scan_repo
+
+    spec = scan_repo(args.repo)
+    if args.json:
+        print(json.dumps(spec.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        print(f"扫描目录：{spec.repo_path}")
+        print(f"识别文件：{', '.join(spec.scanned_files) or '无'}")
+        print(f"提取需求：{len(spec.accepted)} 条（丢弃 {len(spec.rejected)} 条）")
+        for r in spec.accepted:
+            ev = r.evidence.describe() if r.evidence else "无来源"
+            print(f"  - {r.id:<16} {r.requirement_text():<16} {ev}")
+        for w in spec.warnings:
+            print(f"  ! {w}")
+    return 0
+
+
+def cmd_paper_diff(args: argparse.Namespace) -> int:
+    from research_agent.repro import collect_profile, diff, render_matrix, scan_repo
+
+    spec = scan_repo(args.repo)
+    profile = collect_profile(args.repo)
+    report = diff(spec, profile)
+    if args.json:
+        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        print(render_matrix(report))
+    return 0
+
+
+def cmd_paper_report(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from research_agent.repro import collect_profile, diff, render_report, scan_repo
+
+    spec = scan_repo(args.repo)
+    profile = collect_profile(args.repo)
+    report = diff(spec, profile)
+    text = render_report(report)
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"报告已写入 {args.out}")
+    else:
+        print(text)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _ensure_console_encoding()
     parser = argparse.ArgumentParser(
@@ -119,6 +171,24 @@ def main(argv: list[str] | None = None) -> int:
     p_ask = sub.add_parser("ask", help="就环境问题提问")
     p_ask.add_argument("question")
     p_ask.set_defaults(func=cmd_ask)
+
+    p_paper = sub.add_parser("paper", help="论文复现：环境需求 vs 本机")
+    paper_sub = p_paper.add_subparsers(dest="paper_command", required=True)
+
+    p_scan = paper_sub.add_parser("scan", help="从仓库提取环境需求")
+    p_scan.add_argument("repo", help="论文配套代码的本地路径")
+    p_scan.add_argument("--json", action="store_true")
+    p_scan.set_defaults(func=cmd_paper_scan)
+
+    p_diff = paper_sub.add_parser("diff", help="与本机环境比对，输出差距矩阵")
+    p_diff.add_argument("repo")
+    p_diff.add_argument("--json", action="store_true")
+    p_diff.set_defaults(func=cmd_paper_diff)
+
+    p_report = paper_sub.add_parser("report", help="输出完整的可行性报告")
+    p_report.add_argument("repo")
+    p_report.add_argument("--out", help="写入指定文件")
+    p_report.set_defaults(func=cmd_paper_report)
 
     args = parser.parse_args(argv)
     return args.func(args)
