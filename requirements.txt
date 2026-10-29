@@ -6,3 +6,7 @@
 #
 # 模型接入（DeepSeek / Qwen 等 OpenAI 兼容接口）：
 #   pip install openai
+
+# 文档解析（可选。不装时其余功能照常，只是不支持对应格式）：
+#   pip install pdfplumber      # PDF，MIT；未装时 PDF 会明确报错而不是返回空文本
+#   pip install python-docx     # DOCX，MIT；未装时自动退回标准库 zip+XML 解析

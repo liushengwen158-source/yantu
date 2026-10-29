@@ -21,6 +21,7 @@ from .spec import (
     Verdict,
 )
 from .scanner import scan_repo
+from .paper_adapter import paper_requirements, to_requirements
 from .profile import collect_profile
 from .diff import diff
 from .render import render_matrix, render_report
@@ -36,6 +37,8 @@ __all__ = [
     "FeasibilityReport",
     "Verdict",
     "scan_repo",
+    "paper_requirements",
+    "to_requirements",
     "collect_profile",
     "diff",
     "render_matrix",
