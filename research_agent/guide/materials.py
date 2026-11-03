@@ -53,17 +53,17 @@ TRAIN_HINTS = ("backward(", "optimizer", "dataloader", ".fit(", "epoch", "loss")
 
 # 笔记里出现这些词，说明这一维至少被碰过。只作弱证据。
 NOTE_KEYWORDS: dict[Dimension, tuple[str, ...]] = {
-    Dimension.MATH: ("梯度", "线性代数", "矩阵", "概率", "特征值", "导数", "偏导"),
-    Dimension.ML: ("过拟合", "交叉验证", "正则化", "训练集", "验证集", "分类器", "回归"),
-    Dimension.DL: ("反向传播", "卷积", "注意力", "transformer", "学习率", "epoch", "损失函数"),
+    Dimension.MATH: ("梯度", "线性代数", "矩阵", "概率", "特征值", "导数", "偏导", "证明", "复杂度"),
     Dimension.RESEARCH: ("论文", "复现", "消融", "实验记录", "baseline", "arxiv", "引用"),
-    Dimension.SYSTEMS: ("进程", "线程", "死锁", "内存分配", "调度", "缓存", "syscall", "页表"),
-    Dimension.DATA: ("索引", "事务", "b+树", "查询计划", "范式", "join", "sql"),
-    Dimension.SECURITY: ("漏洞", "栈溢出", "汇编", "逆向", "加密", "签名", "威胁模型"),
-    Dimension.THEORY: ("复杂度", "np", "归约", "证明", "近似比", "定理"),
+    # 系统、数据、安全、机器学习都算「写代码」的不同侧面，不再单设维度
+    Dimension.CODING: (
+        "进程", "线程", "死锁", "内存分配", "索引", "事务", "漏洞", "栈溢出", "汇编",
+        "过拟合", "交叉验证", "正则化", "训练集", "验证集", "反向传播", "卷积", "注意力",
+        "transformer", "学习率", "epoch", "损失函数",
+    ),
 }
 
-# 目录里有这些源码，说明干活的语言不是 Python；按弱证据给系统/数据维。
+# 目录里有这些源码，说明干活的语言不是 Python；按弱证据给编程维。
 CODE_EXT_SYSTEMS = {".c", ".cc", ".cpp", ".h", ".hpp", ".rs", ".go", ".s", ".asm"}
 CODE_EXT_DATA = {".sql"}
 
@@ -198,8 +198,8 @@ def _code_signals(code_files: dict[str, list[str]]) -> list[Signal]:
     if len(systems) >= 3:
         out.append(
             _signal(
-                "material.code_systems",
-                Dimension.SYSTEMS,
+                "material.code_native",
+                Dimension.CODING,
                 Level.FOUNDATION,
                 f"目录里有 {len(systems)} 个 C/C++/Rust/Go 源码（如 {systems[0]}）",
                 "底层语言的文件通常意味着写过系统向的代码，但数量与质量都看不出来",
@@ -211,7 +211,7 @@ def _code_signals(code_files: dict[str, list[str]]) -> list[Signal]:
         out.append(
             _signal(
                 "material.sql",
-                Dimension.DATA,
+                Dimension.CODING,
                 Level.FOUNDATION,
                 f"目录里有 SQL 文件（如 {data[0]}）",
                 "有建表或查询脚本，说明跟数据库打过交道",
@@ -351,7 +351,7 @@ def _notebook_signals(notebooks: list[Material], root: Path) -> list[Signal]:
         out.append(
             _signal(
                 "material.notebook_torch",
-                Dimension.DL,
+                Dimension.CODING,
                 Level.FOUNDATION,
                 f"notebook 里 import 了框架：{torch_nb[0]}",
                 "写过框架的代码，说明装过、跑过基础 API；是否跑完训练另说",
@@ -362,7 +362,7 @@ def _notebook_signals(notebooks: list[Material], root: Path) -> list[Signal]:
         out.append(
             _signal(
                 "material.notebook_train",
-                Dimension.DL,
+                Dimension.CODING,
                 Level.WORKING,
                 f"notebook 里有训练循环：{train_nb[0]}",
                 "出现 optimizer/backward/epoch，说明至少走过一次完整训练流程",
@@ -373,7 +373,7 @@ def _notebook_signals(notebooks: list[Material], root: Path) -> list[Signal]:
         out.append(
             _signal(
                 "material.notebook_sklearn",
-                Dimension.ML,
+                Dimension.CODING,
                 Level.FOUNDATION,
                 f"notebook 里用了 sklearn：{sklearn_nb[0]}",
                 "调过 sklearn，走过 fit/评估这条链",

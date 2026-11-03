@@ -3,16 +3,16 @@
 和 ``repro/spec.py`` 同一条原则：**任何进入结论的判断都必须能指回来源**。
 这里的来源是用户的原话，或用户授权扫描到的文件。
 
-和第一版最大的区别：**维度不是固定的六维**。
-计算机的研究方向差别太大——做系统和做理论要补的东西几乎没有交集，
-所以维度分成两层：
+维度只有四个，固定不变：编程与调试、命令行与工程工具、数学基础、科研方法。
+这四条是「能不能开始做研究」的通用刻度，做系统、做理论、做数据都绕不开。
 
-- 核心维：编程与调试、命令行与工程工具、数学基础、科研方法（谁都要）
-- 方向维：系统底层、数据与数据库、安全、算法理论、机器学习、深度学习
-  只在选定方向时才激活
+**研究方向不是维度**。方向只决定两件事：
+1. 每个维度要什么档位（做理论要求数学「能干活」，做系统要求编程「能干活」）
+2. 学什么（任务、论文、第一个项目）
 
-方向未确定时只评估核心维，``ML`` / ``DL`` 不会出现在报告里——
-不把「不需要掌握的东西」摆到用户面前，是这套设计的前提。
+把方向塞进维度（比如多一个「深度学习」维度）的代价是：每加一个方向就要
+多一套规则、多一行表格、多一个提问，而「会 C 但不会并发」这种话其实由
+路线里第一个任务的验收就能暴露，不需要占一个维度。
 
 刻意不给「总分」一个独立字段：分数永远由档位推出，旁边必须带证据，
 否则 70 分是个没法核对、也没法反驳的数字。
@@ -27,48 +27,40 @@ from typing import Any
 
 
 class Domain(str, Enum):
-    """研究方向。用于决定「哪些维度需要评估、哪些阶段需要走」。"""
+    """研究方向族。只影响维度门槛与学习内容，不产生新维度。
+
+    九个细分方向收敛成六个族：网络并入系统，AI4Science 并入人工智能，
+    图形学这类先按「软件与程序语言」走（数学与编程的基本功是一致的）。
+    """
 
     UNKNOWN = "unknown"
-    SYSTEMS = "systems"          # 系统、体系结构、分布式、存储
-    NETWORKS = "networks"        # 网络
-    SECURITY = "security"        # 系统与网络安全
-    DATABASE = "database"        # 数据库与数据管理
-    THEORY = "theory"            # 理论与算法
-    SOFTWARE = "software"        # 软件工程与程序语言
-    GRAPHICS = "graphics"        # 图形学与多媒体
-    AI = "ai"                    # 机器学习 / 深度学习 / CV / NLP
-    AI4SCIENCE = "ai4science"    # AI for Science
+    SYSTEMS = "systems"      # 系统、网络、体系结构、分布式、存储
+    SECURITY = "security"    # 系统与网络安全
+    DATA = "data"            # 数据库、数据管理
+    THEORY = "theory"        # 理论与算法
+    SOFTWARE = "software"    # 软件工程、程序语言、图形学
+    AI = "ai"                # 机器学习、深度学习、CV、NLP、AI4Science
 
     @property
     def label(self) -> str:
         return {
             "unknown": "未定方向",
-            "systems": "系统与体系结构",
-            "networks": "网络",
+            "systems": "系统与网络",
             "security": "安全",
-            "database": "数据库与数据管理",
+            "data": "数据与数据库",
             "theory": "理论与算法",
-            "software": "软件工程与程序语言",
-            "graphics": "图形学与多媒体",
+            "software": "软件与程序语言",
             "ai": "人工智能",
-            "ai4science": "AI for Science",
         }[self.value]
 
 
 class Dimension(str, Enum):
-    """能力维度。前四个是核心维，后面按方向激活。"""
+    """能力维度，固定四个。"""
 
     CODING = "coding"
     TOOLS = "tools"
     MATH = "math"
     RESEARCH = "research"
-    SYSTEMS = "systems"
-    DATA = "data"
-    SECURITY = "security"
-    THEORY = "theory"
-    ML = "ml"
-    DL = "dl"
 
     @property
     def label(self) -> str:
@@ -77,17 +69,12 @@ class Dimension(str, Enum):
             "tools": "命令行与工程工具",
             "math": "数学基础",
             "research": "科研方法",
-            "systems": "系统与底层",
-            "data": "数据与数据库",
-            "security": "安全",
-            "theory": "算法与理论",
-            "ml": "机器学习",
-            "dl": "深度学习",
         }[self.value]
 
     @property
     def is_core(self) -> bool:
-        return self in CORE_DIMENSIONS
+        # 四个都是核心维：保留这个属性是为了兼容旧调用方
+        return True
 
 
 CORE_DIMENSIONS: tuple[Dimension, ...] = (
@@ -219,6 +206,9 @@ class DimensionState:
         """该方向对这一维的最低要求，0 表示没有要求。"""
         if not self.required:
             return ""
+        if int(self.required) <= 1:
+            # 要求「碰过」就够了，写成「从零」会让人以为要求没写清
+            return "碰过即可"
         try:
             return Level(int(self.required)).label
         except ValueError:
@@ -246,7 +236,7 @@ class DimensionState:
             "level_label": self.level.label,
             "score": self.score,
             "required": self.required,
-            "required_label": Level(int(self.required)).label if self.required else "",
+            "required_label": self.required_label,
             "gap": self.gap,
             "confidence": self.confidence.value,
             "confidence_label": self.confidence.label,
@@ -260,10 +250,9 @@ class DimensionState:
 
 @dataclass
 class SkillProfile:
-    """能力画像。只装「这个方向用得上」的维度。
+    """能力画像：四个维度，加一个方向。
 
-    方向未定时只有核心四维；方向确定后再加上该方向需要的维度。
-    不在适用范围内的能力，不评估、不展示、不催着补。
+    方向只用来给这四个维度设门槛，不增加维度数量。
     """
 
     domain: Domain = Domain.UNKNOWN

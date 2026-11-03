@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "note": "证据规则。dimension 只能是 spec.Dimension 里的取值；negative 表示「明确说自己不会」，同一短句里负向优先。文案改动不需要动代码。",
+  "version": 3,
+  "note": "证据规则，只对应四个固定维度。原来的系统/数据/安全/理论/ML/DL 规则合并进编程与数学：写过 C、写过 SQL、跑过训练都算编程能力的不同侧面，不再单设维度。negative 表示「明确说自己不会」，同一短句里负向优先。",
   "rules": [
     {
       "id": "coding.none",
@@ -9,12 +9,7 @@
       "strength": "strong",
       "polarity": "negative",
       "why": "明确表示没写过代码，属于从零起点。",
-      "patterns": [
-        "没写过?(代码|程序|代码)",
-        "不会(编程|写代码|写程序)",
-        "零基础",
-        "没学过(编程|写代码)"
-      ]
+      "patterns": ["没写过?(代码|程序)", "不会(编程|写代码|写程序)", "零基础", "没学过(编程|写代码)"]
     },
     {
       "id": "coding.syntax",
@@ -23,11 +18,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "只接触过语法层面，还不能独立写出程序。",
-      "patterns": [
-        "只会(一点|一点点|基础语法)",
-        "刚学(会)?(python|c\\+\\+|java|语法)",
-        "照着(教程|视频)(抄|写)"
-      ]
+      "patterns": ["只会(一点|一点点|基础语法)", "刚学(会)?(python|c\\+\\+|java|语法)", "照着(教程|视频)(抄|写)"]
     },
     {
       "id": "coding.loop",
@@ -36,11 +27,16 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "能写循环、函数、类，达到能跟着教程写出来的程度。",
-      "patterns": [
-        "写过?(循环|函数|类)",
-        "会写(循环|函数|类)",
-        "写过?(小|简单的)?(脚本|程序)"
-      ]
+      "patterns": ["写过?(循环|函数|类)", "会写(循环|函数|类)", "写过?(小|简单的)?(脚本|程序)"]
+    },
+    {
+      "id": "coding.python",
+      "dimension": "coding",
+      "level": 2,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "写过 Python，能自己把想法跑起来，但还不代表能处理底层或大型工程。",
+      "patterns": ["写(过)?.{0,4}python", "会(一点)?.{0,4}python", "用python(写|做|开发)"]
     },
     {
       "id": "coding.debug",
@@ -49,11 +45,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "会主动调试而不是卡住，说明能自己排错。",
-      "patterns": [
-        "会(用)?(print|断点|调试)",
-        "调(过)?bug",
-        "排查(过)?(报错|错误)"
-      ]
+      "patterns": ["会(用)?(print|断点|调试)", "调(过)?bug", "排查(过)?(报错|错误)"]
     },
     {
       "id": "coding.course-project",
@@ -62,12 +54,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "做过课程设计或大作业，写过有规模的代码。",
-      "patterns": [
-        "写过?(课设|大作业|项目)",
-        "做过(课设|小项目|小工具)",
-        "做过?(课设|大作业|项目|小工具|小项目)",
-        "做过?课程(设计|项目)"
-      ]
+      "patterns": ["写过?(课设|大作业|项目)", "做过?(课设|大作业|小项目|小工具|项目)", "做过?课程(设计|项目)"]
     },
     {
       "id": "coding.independent",
@@ -76,24 +63,16 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "独立完成过项目，说明能自己拆问题、自己收尾。",
-      "patterns": [
-        "独立(写|完成|做)(过)?(项目|工具|系统)",
-        "自己(从零)?(写|搭)(过)?(一个|了个)"
-      ]
+      "patterns": ["独立(写|完成|做)(过)?(项目|工具|系统)", "自己(从零)?(写|搭)(过)?(一个|了个)"]
     },
     {
-      "id": "coding.cpp",
+      "id": "coding.c",
       "dimension": "coding",
       "level": 3,
       "strength": "strong",
       "polarity": "positive",
-      "why": "写过 C/C++，说明能处理手动内存与编译流程。",
-      "patterns": [
-        "写过?c\\+\\+",
-        "用(c\\+\\+|cpp)(写|做|开发)",
-        "写过?c语言",
-        "写过?c(?![a-z0-9+])"
-      ]
+      "why": "写过 C/C++，说明能处理手动内存与编译流程，底层方向的门槛就在这。",
+      "patterns": ["写过?c\\+\\+", "用(c\\+\\+|cpp)(写|做|开发)", "写过?c语言", "写过?c(?![a-z0-9+])"]
     },
     {
       "id": "coding.other-lang",
@@ -102,24 +81,97 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "掌握多门语言，迁移成本低。",
-      "patterns": [
-        "写过?java",
-        "写过?rust",
-        "写过?go(lang)?",
-        "用java(写|做)"
-      ]
+      "patterns": ["写过?java", "写过?rust", "写过?go(lang)?", "用java(写|做)"]
     },
     {
-      "id": "coding.none-lang",
+      "id": "coding.memory",
+      "dimension": "coding",
+      "level": 3,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "管过内存、写过数据结构，能处理指针层面的问题。",
+      "patterns": ["用(过)?(指针|malloc)", "管理(过)?内存", "写(过)?(链表|哈希表|动态数组)"]
+    },
+    {
+      "id": "coding.concurrency",
+      "dimension": "coding",
+      "level": 3,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "写过并发代码，知道锁与竞态是怎么回事。",
+      "patterns": ["写(过)?(多线程|线程池)", "用(过)?多线程", "用(过)?(互斥|信号量|自旋锁)", "处理(过)?(并发|竞态)"]
+    },
+    {
+      "id": "coding.sql",
+      "dimension": "coding",
+      "level": 2,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "写过 SQL，能自己从库里取数。",
+      "patterns": ["写(过)?sql", "会(用)?(mysql|postgres|sqlite)", "用(过)?数据库"]
+    },
+    {
+      "id": "coding.data-work",
+      "dimension": "coding",
+      "level": 3,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "处理过真实数据，知道数据有多脏、要怎么清洗。",
+      "patterns": ["用(过)?pandas", "数据(清洗|处理)", "做过?特征工程"]
+    },
+    {
+      "id": "coding.security",
+      "dimension": "coding",
+      "level": 3,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "做过逆向或漏洞复现，说明能读底层代码与二进制。",
+      "patterns": ["打(过)?ctf", "复现(过)?(漏洞|cve)", "挖(过)?(漏洞|洞)", "看(得)?懂(汇编|反汇编)", "搞(过)?(栈溢出|exploit)"]
+    },
+    {
+      "id": "coding.ml",
+      "dimension": "coding",
+      "level": 3,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "跑过完整训练或改过模型结构，不只是调接口。",
+      "patterns": ["用(过)?(sklearn|torch|pytorch|tensorflow)", "训练(过)?(模型|网络)", "改(过)?(网络|结构|loss)", "实现(过)?(attention|transformer|resnet)"]
+    },
+    {
+      "id": "coding.no-python",
+      "dimension": "coding",
+      "level": 1,
+      "strength": "strong",
+      "polarity": "negative",
+      "why": "明确说没写过 Python，避免把「没写过」误当成「写过」。",
+      "patterns": ["没(写|学|碰)(过)?.{0,4}python", "不会(用)?python"]
+    },
+    {
+      "id": "coding.api-only",
       "dimension": "coding",
       "level": 1,
       "strength": "weak",
       "polarity": "negative",
-      "why": "只会背语法题，没写过能跑的功能。",
-      "patterns": [
-        "只会(背|考试)",
-        "代码(都)?是(抄|复制)的"
-      ]
+      "why": "只调过接口，没接触实现细节，容易高估自己。",
+      "patterns": ["只(会)?调(api|接口)", "只跑(过)?(demo|示例)"]
+    },
+    {
+      "id": "coding.no-ml",
+      "dimension": "coding",
+      "level": 1,
+      "strength": "strong",
+      "polarity": "negative",
+      "why": "明确说没碰过训练框架，和「跑过训练」互相打架，这时不猜。",
+      "patterns": ["没碰(过)?(torch|pytorch|tensorflow|深度学习|神经网络)", "没(?:\\.|跑)过训练", "没训练(过)?(模型|网络)"]
+    },
+    {
+      "id": "coding.no-c",
+      "dimension": "coding",
+      "level": 1,
+      "strength": "weak",
+      "polarity": "negative",
+      "why": "没写过底层语言，系统方向要先把这一层补上。",
+      "patterns": ["没写过?c(语言)?", "不会(用)?(指针|gdb)", "没碰(过)?[^，。]{0,6}(底层|内核|汇编)"]
     },
     {
       "id": "tools.none",
@@ -128,11 +180,7 @@
       "strength": "strong",
       "polarity": "negative",
       "why": "没用过命令行，后面所有实验操作都会卡住。",
-      "patterns": [
-        "没用过(命令行|终端|shell)",
-        "不会(用)?(命令行|终端|shell|linux)",
-        "只会(点)?鼠标"
-      ]
+      "patterns": ["没用过(命令行|终端|shell)", "不会(用)?(命令行|终端|shell|linux)", "只会(点)?鼠标"]
     },
     {
       "id": "tools.basic",
@@ -141,11 +189,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "能用命令行做基本操作，够走通安装与运行。",
-      "patterns": [
-        "会(用)?(cd|ls|基础命令)",
-        "用过?(命令行|终端)",
-        "会(用)?linux"
-      ]
+      "patterns": ["会(用)?(cd|ls|基础命令)", "用过?(命令行|终端)", "会(用)?linux"]
     },
     {
       "id": "tools.pipe",
@@ -154,10 +198,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "会用管道与文本处理，能自己从日志里找信息。",
-      "patterns": [
-        "用(过)?(管道|grep|awk|sed)",
-        "会用?\\|"
-      ]
+      "patterns": ["用(过)?(管道|grep|awk|sed)"]
     },
     {
       "id": "tools.script",
@@ -166,10 +207,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "写过脚本，能把重复操作自动化。",
-      "patterns": [
-        "写过?(shell|bash)(脚本)?",
-        "写过?脚本"
-      ]
+      "patterns": ["写过?(shell|bash)(脚本)?", "写过?脚本"]
     },
     {
       "id": "tools.ssh",
@@ -178,11 +216,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "连过远程机器，能在服务器上跑实验。",
-      "patterns": [
-        "用(过)?ssh",
-        "远程(登录|连|跑)",
-        "连(过)?服务器"
-      ]
+      "patterns": ["用(过)?ssh", "远程(登录|连|跑)", "连(过)?服务器"]
     },
     {
       "id": "tools.git",
@@ -191,12 +225,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "用过版本控制，能管代码与回溯改动。",
-      "patterns": [
-        "用(过)?git",
-        "git(提交|push|pull|clone)",
-        "用(过)?github",
-        "用(过)?[^，。]{0,6}(git|github)"
-      ]
+      "patterns": ["用(过)?git", "git(提交|push|pull|clone)", "用(过)?github", "用(过)?[^，。]{0,6}(git|github)"]
     },
     {
       "id": "tools.env",
@@ -205,10 +234,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "配过环境或虚拟环境，能处理依赖冲突。",
-      "patterns": [
-        "配(过)?(环境变量|虚拟环境|conda|venv)",
-        "装(过)?(cuda|驱动|torch)"
-      ]
+      "patterns": ["配(过)?(环境变量|虚拟环境|conda|venv)", "装(过)?(cuda|驱动|torch)"]
     },
     {
       "id": "tools.container",
@@ -217,22 +243,25 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "用过容器，能复现别人的运行环境。",
-      "patterns": [
-        "用(过)?(docker|容器)",
-        "写过?dockerfile"
-      ]
+      "patterns": ["用(过)?(docker|容器)", "写过?dockerfile"]
     },
     {
-      "id": "tools.none-linux",
+      "id": "tools.perf",
+      "dimension": "tools",
+      "level": 3,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "用过剖析或抓包工具，能用数据说明问题。",
+      "patterns": ["用(过)?(perf|火焰图|strace|gdb|tcpdump|wireshark)", "用(过)?[^，。]{0,10}(perf|火焰图|strace|tcpdump)"]
+    },
+    {
+      "id": "tools.no-linux",
       "dimension": "tools",
       "level": 1,
       "strength": "weak",
       "polarity": "negative",
       "why": "不熟 Linux，而多数论文代码只在 Linux 上跑得通。",
-      "patterns": [
-        "不(太)?会(用)?(linux|命令行)",
-        "只在?windows(上)?(跑|用)"
-      ]
+      "patterns": ["不(太)?会(用)?(linux|命令行)", "只在?windows(上)?(跑|用)"]
     },
     {
       "id": "math.none",
@@ -241,11 +270,7 @@
       "strength": "strong",
       "polarity": "negative",
       "why": "明确说数学薄弱，涉及公式推导的部分要先补。",
-      "patterns": [
-        "数学(不好|很差|忘光|薄弱)",
-        "高数(不及格|挂了|没学)",
-        "没学(过)?(线代|线性代数|概率)"
-      ]
+      "patterns": ["数学(不好|很差|忘光|薄弱)", "高数(不及格|挂了|没学)", "没学(过)?(线代|线性代数|概率)"]
     },
     {
       "id": "math.course",
@@ -254,9 +279,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "学过微积分、线代、概率，具备读公式的基础。",
-      "patterns": [
-        "学(过)?(高数|微积分|线代|线性代数|概率论|数理统计)"
-      ]
+      "patterns": ["学(过)?(高数|微积分|线代|线性代数|概率论|数理统计)"]
     },
     {
       "id": "math.grad",
@@ -265,10 +288,7 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "会求导、理解梯度，能看懂优化过程。",
-      "patterns": [
-        "会(求)?(导|偏导|梯度)",
-        "推(过)?(公式|梯度)"
-      ]
+      "patterns": ["会(求)?(导|偏导|梯度)", "推(过)?(公式|梯度)"]
     },
     {
       "id": "math.derive",
@@ -277,23 +297,34 @@
       "strength": "strong",
       "polarity": "positive",
       "why": "能手推公式，读论文时不会被推导卡住。",
-      "patterns": [
-        "手推(过)?",
-        "推导(过)?(公式|证明)",
-        "能自己(推|证)"
-      ]
+      "patterns": ["手推(过)?", "推导(过)?(公式|证明)", "能自己(推|证)"]
     },
     {
       "id": "math.proof",
       "dimension": "math",
+      "level": 3,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "写过证明、做过归约，理论方向的门槛就在这。",
+      "patterns": ["写(过)?证明", "会(做)?归约", "学过?(离散数学|数理逻辑)"]
+    },
+    {
+      "id": "math.no-proof",
+      "dimension": "math",
+      "level": 1,
+      "strength": "strong",
+      "polarity": "negative",
+      "why": "没写过证明，理论方向的门槛要先补；这句话也会盖掉「写过证明」的误匹配。",
+      "patterns": ["没写(过)?证明", "不会(写|做)证明", "没学(过)?(离散数学|数理逻辑)"]
+    },
+    {
+      "id": "math.complexity",
+      "dimension": "math",
       "level": 2,
       "strength": "strong",
       "polarity": "positive",
-      "why": "写过证明、学过离散数学，能读理论向的内容。",
-      "patterns": [
-        "写(过)?证明",
-        "学过?(离散数学|数理逻辑)"
-      ]
+      "why": "会分析复杂度，能判断算法在数据变大时还行不行。",
+      "patterns": ["复杂度", "大?o\\(n", "摊还分析", "推(过)?(界|复杂度)"]
     },
     {
       "id": "math.strong",
@@ -302,9 +333,7 @@
       "strength": "weak",
       "polarity": "positive",
       "why": "自评数学不错，但这是自我评价，需要具体经历印证。",
-      "patterns": [
-        "数学(还)?(可以|不错|挺好|扎实)"
-      ]
+      "patterns": ["数学(还)?(可以|不错|挺好|扎实)"]
     },
     {
       "id": "math.weak",
@@ -313,10 +342,16 @@
       "strength": "weak",
       "polarity": "negative",
       "why": "自评数学一般，涉及推导时建议放慢。",
-      "patterns": [
-        "数学(基础)?(一般|不太好)",
-        "公式(看着)?(就)?头大"
-      ]
+      "patterns": ["数学(基础)?(一般|不太好)", "公式(看着)?(就)?头大"]
+    },
+    {
+      "id": "math.contest",
+      "dimension": "math",
+      "level": 3,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "打过算法竞赛，算法与推导功底通常扎实。",
+      "patterns": ["打(过)?(acm|竞赛)", "拿(过)?(奖|牌)", "刷(过)?(题|leetcode)"]
     },
     {
       "id": "research.none",
@@ -325,111 +360,7 @@
       "strength": "strong",
       "polarity": "negative",
       "why": "没读过论文，读论文的方法要从零教。",
-      "patterns": [
-        "没读(过)?(论文|paper)",
-        "没看过?(paper|论文)",
-        "不会(读|看)论文"
-      ]
-    },
-    {
-      "id": "research.read",
-      "dimension": "research",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "读过论文，知道论文长什么样。",
-      "patterns": [
-        "读(过)?(几篇)?论文",
-        "看(过)?(paper|论文)"
-      ]
-    },
-    {
-      "id": "research.read-many",
-      "dimension": "research",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "读过不少论文，有量的积累。",
-      "patterns": [
-        "读(过)?(很多|大量|几十篇)论文",
-        "(天天|经常)看(paper|论文)"
-      ]
-    },
-    {
-      "id": "research.method",
-      "dimension": "research",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "有读论文的方法，不是从头读到尾。",
-      "patterns": [
-        "三遍(法)?",
-        "先看(摘要|结论|图表)",
-        "survey(看)?(过)?",
-        "综述(看)?(过)?"
-      ]
-    },
-    {
-      "id": "research.reproduce",
-      "dimension": "research",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "复现过别人的工作，知道复现会卡在哪。",
-      "patterns": [
-        "复现(过)?",
-        "跑(过)?(别人|作者)的(代码|实验)"
-      ]
-    },
-    {
-      "id": "research.experiment",
-      "dimension": "research",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "做过对比实验或消融，理解实验设计。",
-      "patterns": [
-        "做(过)?(对比实验|消融|实验设计)",
-        "跑(过)?(baseline|基线)"
-      ]
-    },
-    {
-      "id": "research.write",
-      "dimension": "research",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "写过报告或论文，能把结果组织成文。",
-      "patterns": [
-        "写(过)?(论文|report|报告|综述|结题)"
-      ]
-    },
-    {
-      "id": "research.publish",
-      "dimension": "research",
-      "level": 4,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "有发表经历，科研流程已经走完过一遍。",
-      "patterns": [
-        "发表(过)?",
-        "中了?(会议|期刊)",
-        "一作",
-        "投(过)?(稿|论文)"
-      ]
-    },
-    {
-      "id": "research.log",
-      "dimension": "research",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "有记录实验的习惯，结果可追溯。",
-      "patterns": [
-        "记(过)?(实验)?记录",
-        "实验(记录|日志)",
-        "写(过)?日志"
-      ]
+      "patterns": ["没读(过)?(论文|paper)", "没看过?(paper|论文)", "不会(读|看)论文"]
     },
     {
       "id": "research.none-deep",
@@ -438,445 +369,79 @@
       "strength": "strong",
       "polarity": "negative",
       "why": "没接触过科研，需要先补科研流程的常识。",
-      "patterns": [
-        "完全没(接触|碰)过(科研|研究)",
-        "不知道(科研|研究)(是|要)(做|干)什么"
-      ]
+      "patterns": ["完全没(接触|碰)过(科研|研究)", "不知道(科研|研究)(是|要)(做|干)什么"]
     },
     {
-      "id": "systems.none",
-      "dimension": "systems",
-      "level": 1,
-      "strength": "strong",
-      "polarity": "negative",
-      "why": "没写过 C、不熟底层，系统方向要先补这一层。",
-      "patterns": [
-        "没写(过)?c(语言)?",
-        "不会(用)?(指针|gdb)",
-        "没碰(过)?(底层|内核|汇编)",
-        "没碰(过)?[^，。]{0,6}(底层|内核|汇编)"
-      ]
-    },
-    {
-      "id": "systems.c",
-      "dimension": "systems",
+      "id": "research.read",
+      "dimension": "research",
       "level": 2,
       "strength": "strong",
       "polarity": "positive",
-      "why": "写过 C 或学过操作系统，具备进入系统方向的基础。",
-      "patterns": [
-        "写过?c(语言)?",
-        "学过?(操作系统|组成原理|计算机系统)"
-      ]
+      "why": "读过论文，知道论文长什么样。",
+      "patterns": ["读(过)?(几篇)?论文", "看(过)?(paper|论文)"]
     },
     {
-      "id": "systems.memory",
-      "dimension": "systems",
+      "id": "research.read-many",
+      "dimension": "research",
+      "level": 2,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "读过不少论文，有量的积累。",
+      "patterns": ["读(过)?(很多|大量|几十篇)论文", "(天天|经常)看(paper|论文)"]
+    },
+    {
+      "id": "research.method",
+      "dimension": "research",
       "level": 3,
       "strength": "strong",
       "polarity": "positive",
-      "why": "管过内存、写过数据结构，能处理指针层面的问题。",
-      "patterns": [
-        "用(过)?(指针|malloc)",
-        "管理(过)?内存",
-        "写(过)?(链表|哈希表|动态数组)"
-      ]
+      "why": "有读论文的方法，不是从头读到尾。",
+      "patterns": ["三遍(法)?", "先看(摘要|结论|图表)", "survey", "综述"]
     },
     {
-      "id": "systems.concurrency",
-      "dimension": "systems",
+      "id": "research.reproduce",
+      "dimension": "research",
       "level": 3,
       "strength": "strong",
       "polarity": "positive",
-      "why": "写过并发代码，知道锁与竞态是怎么回事。",
-      "patterns": [
-        "写(过)?(多线程|线程池)",
-        "用(过)?(互斥|信号量|自旋锁)",
-        "处理(过)?(并发|竞态)",
-        "用(过)?多线程",
-        "写(过)?并发"
-      ]
+      "why": "复现过别人的工作，知道复现会卡在哪。",
+      "patterns": ["复现(过)?", "跑(过)?(别人|作者)的(代码|实验)"]
     },
     {
-      "id": "systems.perf",
-      "dimension": "systems",
+      "id": "research.experiment",
+      "dimension": "research",
       "level": 3,
       "strength": "strong",
       "polarity": "positive",
-      "why": "用过剖析工具，能用数据说明性能问题。",
-      "patterns": [
-        "用(过)?(perf|火焰图|strace|gdb)",
-        "做(过)?性能(优化|分析)",
-        "用(过)?[^，。]{0,10}(perf|火焰图|strace|gdb)"
-      ]
+      "why": "做过对比实验或消融，理解实验设计。",
+      "patterns": ["做(过)?(对比实验|消融|实验设计)", "跑(过)?(baseline|基线)"]
     },
     {
-      "id": "systems.kernel",
-      "dimension": "systems",
+      "id": "research.write",
+      "dimension": "research",
+      "level": 3,
+      "strength": "strong",
+      "polarity": "positive",
+      "why": "写过报告或论文，能把结果组织成文。",
+      "patterns": ["写(过)?(论文|report|报告|综述|结题)"]
+    },
+    {
+      "id": "research.publish",
+      "dimension": "research",
       "level": 4,
       "strength": "strong",
       "polarity": "positive",
-      "why": "读过或改过内核/驱动，已经进入系统深水区。",
-      "patterns": [
-        "改(过)?内核",
-        "写(过)?驱动",
-        "读过?(linux)?内核(源码|代码)"
-      ]
+      "why": "有发表经历，科研流程已经走完过一遍。",
+      "patterns": ["发表(过)?", "中了?(会议|期刊)", "一作", "投(过)?(稿|论文)"]
     },
     {
-      "id": "systems.distributed",
-      "dimension": "systems",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "接触过分布式与一致性，能读相关论文。",
-      "patterns": [
-        "做(过)?分布式",
-        "写过?(raft|paxos)",
-        "了解(过)?(一致性|共识)"
-      ]
-    },
-    {
-      "id": "data.none",
-      "dimension": "data",
-      "level": 1,
-      "strength": "strong",
-      "polarity": "negative",
-      "why": "没写过 SQL，数据方向的第一道门槛就在这。",
-      "patterns": [
-        "没写(过)?sql",
-        "不会(用)?(数据库|sql|pandas)"
-      ]
-    },
-    {
-      "id": "data.sql",
-      "dimension": "data",
+      "id": "research.log",
+      "dimension": "research",
       "level": 2,
       "strength": "strong",
       "polarity": "positive",
-      "why": "写过 SQL，能自己做数据查询。",
-      "patterns": [
-        "写(过)?sql",
-        "会(用)?(mysql|postgres|sqlite)",
-        "用(过)?数据库"
-      ]
-    },
-    {
-      "id": "data.query",
-      "dimension": "data",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "写过复杂查询或优化过，理解索引与执行计划。",
-      "patterns": [
-        "写(过)?(复杂|多表)(查询|join)",
-        "优化(过)?(查询|sql)",
-        "看(过)?执行计划"
-      ]
-    },
-    {
-      "id": "data.clean",
-      "dimension": "data",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "做过数据清洗与特征处理，知道真实数据有多脏。",
-      "patterns": [
-        "用(过)?pandas",
-        "数据(清洗|处理)",
-        "做过?特征工程"
-      ]
-    },
-    {
-      "id": "data.bigdata",
-      "dimension": "data",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "用过大数据组件，能处理超出单机规模的数据。",
-      "patterns": [
-        "用(过)?(spark|hive|flink)",
-        "处理(过)?(大规模|上亿)数据"
-      ]
-    },
-    {
-      "id": "security.none",
-      "dimension": "security",
-      "level": 1,
-      "strength": "strong",
-      "polarity": "negative",
-      "why": "没做过安全方向的东西，需要从二进制与协议基础开始。",
-      "patterns": [
-        "没做(过)?(安全|逆向)",
-        "不会(看)?(汇编|反汇编)"
-      ]
-    },
-    {
-      "id": "security.ctf",
-      "dimension": "security",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "打过 CTF，有实际的攻防练习经验。",
-      "patterns": [
-        "打(过)?ctf",
-        "做(过)?(pwn|web题|逆向题|misc)"
-      ]
-    },
-    {
-      "id": "security.asm",
-      "dimension": "security",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "能读汇编、用过反汇编工具，具备二进制分析能力。",
-      "patterns": [
-        "看(得)?懂(汇编|反汇编)",
-        "用(过)?(ida|ghidra|objdump)"
-      ]
-    },
-    {
-      "id": "security.crypto",
-      "dimension": "security",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "学过密码学基础，能理解签名与加密的用途。",
-      "patterns": [
-        "学(过)?密码学",
-        "用(过)?(openssl|签名|验签)"
-      ]
-    },
-    {
-      "id": "security.vuln",
-      "dimension": "security",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "复现或分析过真实漏洞，理解成因而不只是会用工具。",
-      "patterns": [
-        "复现(过)?(漏洞|cve)",
-        "挖(过)?(漏洞|洞)",
-        "搞(过)?(栈溢出|exploit)"
-      ]
-    },
-    {
-      "id": "theory.none",
-      "dimension": "theory",
-      "level": 1,
-      "strength": "strong",
-      "polarity": "negative",
-      "why": "没写过证明，理论方向要先补严谨论证这一关。",
-      "patterns": [
-        "不会(写)?证明",
-        "没学(过)?(离散数学|计算理论)"
-      ]
-    },
-    {
-      "id": "theory.course",
-      "dimension": "theory",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "学过数据结构与算法，具备分析复杂度的基础。",
-      "patterns": [
-        "学(过)?(数据结构|算法|离散数学|计算理论)"
-      ]
-    },
-    {
-      "id": "theory.practice",
-      "dimension": "theory",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "刷过算法题，有实现与分析的练习量。",
-      "patterns": [
-        "刷(过)?(题|leetcode)",
-        "做(过)?算法题"
-      ]
-    },
-    {
-      "id": "theory.proof",
-      "dimension": "theory",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "写过证明、做过归约，能读理论论文的论证。",
-      "patterns": [
-        "写(过)?证明",
-        "会(做)?归约",
-        "推(过)?(复杂度|界)"
-      ]
-    },
-    {
-      "id": "theory.contest",
-      "dimension": "theory",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "打过算法竞赛，算法功底通常扎实。",
-      "patterns": [
-        "打(过)?(acm|竞赛)",
-        "拿(过)?(奖|牌)"
-      ]
-    },
-    {
-      "id": "ml.none",
-      "dimension": "ml",
-      "level": 1,
-      "strength": "strong",
-      "polarity": "negative",
-      "why": "没学过机器学习，方向内的第一层概念要补。",
-      "patterns": [
-        "没学(过)?(机器学习|ml)",
-        "不懂(机器学习|模型)"
-      ]
-    },
-    {
-      "id": "ml.course",
-      "dimension": "ml",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "系统学过机器学习，知道基本模型与评估。",
-      "patterns": [
-        "学(过)?(机器学习|统计学习|模式识别)",
-        "看(过)?(西瓜书|李航)"
-      ]
-    },
-    {
-      "id": "ml.sklearn",
-      "dimension": "ml",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "跑过传统模型，能把数据喂进流程。",
-      "patterns": [
-        "用(过)?sklearn",
-        "跑(过)?(分类|回归|聚类)"
-      ]
-    },
-    {
-      "id": "ml.metric",
-      "dimension": "ml",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "会选指标、看混淆矩阵，能判断结果好坏。",
-      "patterns": [
-        "用(过)?(准确率|召回|f1|auc)",
-        "看(过)?混淆矩阵"
-      ]
-    },
-    {
-      "id": "ml.tuning",
-      "dimension": "ml",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "调过参、用过交叉验证，理解泛化与选择。",
-      "patterns": [
-        "调(过)?(参|超参)",
-        "用(过)?交叉验证",
-        "交叉验证"
-      ]
-    },
-    {
-      "id": "ml.contest",
-      "dimension": "ml",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "参加过数据比赛，有端到端建模经验。",
-      "patterns": [
-        "打(过)?kaggle",
-        "做(过)?(比赛|竞赛)"
-      ]
-    },
-    {
-      "id": "dl.none",
-      "dimension": "dl",
-      "level": 1,
-      "strength": "strong",
-      "polarity": "negative",
-      "why": "没用过深度学习框架，神经网络这块要从头开始。",
-      "patterns": [
-        "没用过?(torch|pytorch|tensorflow)",
-        "没碰(过)?(深度学习|神经网络)",
-        "没碰(过)?(torch|pytorch|tensorflow|深度学习|神经网络)",
-        "没用过?(torch|pytorch|tensorflow|深度学习|神经网络)"
-      ]
-    },
-    {
-      "id": "dl.course",
-      "dimension": "dl",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "学过深度学习，理解网络结构与训练流程。",
-      "patterns": [
-        "学(过)?(深度学习|神经网络)",
-        "看(过)?(花书|深度学习)"
-      ]
-    },
-    {
-      "id": "dl.framework",
-      "dimension": "dl",
-      "level": 2,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "用过框架跑过模型，能上手现有代码。",
-      "patterns": [
-        "用(过)?(torch|pytorch|tensorflow)",
-        "跑(过)?(模型|训练)"
-      ]
-    },
-    {
-      "id": "dl.train",
-      "dimension": "dl",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "自己训练过模型，处理过数据与超参。",
-      "patterns": [
-        "训练(过)?(模型|网络)",
-        "自己(写|搭)(过)?(网络|模型)"
-      ]
-    },
-    {
-      "id": "dl.gpu",
-      "dimension": "dl",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "用过 GPU/CUDA，能自己处理显存与环境问题。",
-      "patterns": [
-        "用(过)?(gpu|cuda|显卡)"
-      ]
-    },
-    {
-      "id": "dl.architecture",
-      "dimension": "dl",
-      "level": 3,
-      "strength": "strong",
-      "polarity": "positive",
-      "why": "改过网络结构或 loss，不只是调包。",
-      "patterns": [
-        "改(过)?(网络|结构|loss)",
-        "实现(过)?(attention|transformer|resnet)"
-      ]
-    },
-    {
-      "id": "dl.api-only",
-      "dimension": "dl",
-      "level": 1,
-      "strength": "weak",
-      "polarity": "negative",
-      "why": "只调过接口，没接触训练细节，容易高估自己。",
-      "patterns": [
-        "只(会)?调(api|接口)",
-        "只跑(过)?(demo|示例)"
-      ]
+      "why": "有记录实验的习惯，结果可追溯。",
+      "patterns": ["记(过)?(实验)?记录", "实验(记录|日志)", "写(过)?日志"]
     }
   ]
 }

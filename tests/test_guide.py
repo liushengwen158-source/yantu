@@ -60,10 +60,10 @@ class SignalTests(unittest.TestCase):
     def test_quote_never_crosses_into_another_dimension(self) -> None:
         signals = match_signals("我没用过命令行，也没碰过torch")
         tools = [s for s in signals if s.dimension is Dimension.TOOLS]
-        dl = [s for s in signals if s.dimension is Dimension.DL]
+        coding = [s for s in signals if s.dimension is Dimension.CODING]
         self.assertTrue(tools, "命令行这一维应该被抓到")
-        self.assertTrue(dl, "深度学习这一维应该被抓到")
-        for signal in dl:
+        self.assertTrue(coding, "torch 这一句应该落到编程维")
+        for signal in coding:
             self.assertNotIn("命令行", signal.quote)
 
     def test_negative_wins_in_same_clause(self) -> None:
@@ -74,7 +74,7 @@ class SignalTests(unittest.TestCase):
 
     def test_sql_with_space_is_matched(self) -> None:
         signals = match_signals("写过 SQL")
-        self.assertTrue([s for s in signals if s.dimension is Dimension.DATA])
+        self.assertTrue([s for s in signals if s.dimension is Dimension.CODING])
 
     def test_english_keyword_is_case_insensitive(self) -> None:
         lower = match_signals("我跑过训练")
@@ -87,16 +87,15 @@ class SignalTests(unittest.TestCase):
 
     def test_rule_library_loads(self) -> None:
         rules = load_rules()
-        self.assertGreater(len(rules), 50)
+        self.assertGreaterEqual(len(rules), 40)
         dimensions = {r["dimension"] for r in rules}
-        self.assertIn(Dimension.SYSTEMS, dimensions)
-        self.assertIn(Dimension.SECURITY, dimensions)
+        self.assertEqual(dimensions, set(Dimension))
 
 
 class DomainDetectionTests(unittest.TestCase):
     def test_detects_database_from_talk(self) -> None:
         domain, evidence = detect_domain("我在做数据库方向")
-        self.assertIs(domain, Domain.DATABASE)
+        self.assertIs(domain, Domain.DATA)
         self.assertIn("数据库", evidence)
 
     def test_detects_ai_shorthand(self) -> None:
@@ -114,7 +113,8 @@ class DomainDetectionTests(unittest.TestCase):
 
     def test_resolve_domain_accepts_chinese_name(self) -> None:
         self.assertIs(resolve_domain("系统"), Domain.SYSTEMS)
-        self.assertIs(resolve_domain("database"), Domain.DATABASE)
+        self.assertIs(resolve_domain("database"), Domain.DATA)
+        self.assertIs(resolve_domain("网络"), Domain.SYSTEMS)
 
     def test_resolve_domain_rejects_nonsense(self) -> None:
         with self.assertRaises(ValueError):
@@ -128,18 +128,16 @@ class DomainDetectionTests(unittest.TestCase):
 
 
 class ProfileTests(unittest.TestCase):
+    def test_dimension_set_never_grows_with_domain(self) -> None:
+        # 方向只改门槛，不改维度数量：九个方向收敛成六族后仍然只有四维
+        for domain in list_domains():
+            profile = build_profile(domain.name, domain=domain.domain.value)
+            self.assertEqual(set(profile.dimensions), set(CORE_DIMENSIONS))
+
     def test_unknown_domain_only_has_core_dimensions(self) -> None:
         profile = build_profile("我还在看，方向没定")
         self.assertIs(profile.domain, Domain.UNKNOWN)
         self.assertEqual(set(profile.dimensions), set(CORE_DIMENSIONS))
-        self.assertNotIn(Dimension.ML, profile.dimensions)
-        self.assertNotIn(Dimension.DL, profile.dimensions)
-
-    def test_systems_profile_hides_ml(self) -> None:
-        profile = build_profile("我在做系统方向，写过 C")
-        self.assertIs(profile.domain, Domain.SYSTEMS)
-        self.assertNotIn(Dimension.ML, profile.dimensions)
-        self.assertIn(Dimension.SYSTEMS, profile.dimensions)
 
     def test_domain_requirements_are_attached(self) -> None:
         profile = build_profile("我在做理论方向，学过离散数学")
@@ -148,7 +146,7 @@ class ProfileTests(unittest.TestCase):
 
     def test_conflict_is_flagged_not_averaged(self) -> None:
         profile = build_profile("我训练过模型，但完全没碰过深度学习")
-        state = profile.dimensions[Dimension.DL]
+        state = profile.dimensions[Dimension.CODING]
         self.assertTrue(state.conflicts)
         self.assertIs(state.level, Level.UNKNOWN)
 
@@ -170,7 +168,7 @@ class ProfileTests(unittest.TestCase):
     def test_self_statement_beats_file_hint_for_level(self) -> None:
         scan = scan_materials(FIXTURES)
         profile = build_profile("我跑过训练，改过 loss", scan=scan, domain=Domain.AI)
-        state = profile.dimensions[Dimension.DL]
+        state = profile.dimensions[Dimension.CODING]
         self.assertTrue(state.is_known)
         self.assertIs(state.level, Level.WORKING)
 
@@ -195,11 +193,12 @@ class ProfileTests(unittest.TestCase):
 
 
 class RenderTests(unittest.TestCase):
-    def test_systems_table_mentions_no_deep_learning(self) -> None:
+    def test_table_has_exactly_four_rows(self) -> None:
         profile = build_profile("我在做系统方向，写过 C")
         table = render_table(profile)
+        rows = [line for line in table.splitlines() if line.startswith("| ") and "---" not in line]
+        self.assertEqual(len(rows), 1 + len(CORE_DIMENSIONS))   # 表头 + 四维
         self.assertNotIn("深度学习", table)
-        self.assertIn("系统与底层", table)
 
     def test_table_shows_evidence(self) -> None:
         profile = build_profile("我在做系统方向，写过 C")
@@ -211,9 +210,11 @@ class RenderTests(unittest.TestCase):
         self.assertIn("没有跑测评", text)
         self.assertIn("不等于「不会」", text)
 
-    def test_ai_profile_still_shows_ml(self) -> None:
+    def test_ai_requirements_live_in_the_table(self) -> None:
+        # AI 方向不再多出「机器学习」这一维，它的要求体现在数学与编程的门槛上
         profile = build_profile("我在做 AI 方向")
-        self.assertIn("机器学习", render_table(profile))
+        self.assertGreater(profile.dimensions[Dimension.MATH].required, 1)
+        self.assertNotIn("机器学习", render_table(profile))
 
 
 class ProbeTests(unittest.TestCase):

@@ -8,14 +8,14 @@
 3. **文件证据不定档**：文件只能证明「材料在」，不能证明「掌握了」，
    单靠文件把档位停在未知，置信度给低，并在备注里写清原因。
 4. **弱证据只作旁证**：自评类的话（「我数学还行」）放 caveats，不进档位。
-5. **只评估用得上的维度**：方向未定时只有核心四维，方向维不出现。
+5. **维度固定四维**：方向只改门槛，不增加维度；方向没定就按核心要求走，不追问。
 """
 
 from __future__ import annotations
 
 from typing import Iterable
 
-from .domains import active_dimensions, detect_domain, required_levels
+from .domains import active_dimensions, detect_domain, required_levels, resolve_domain
 from .materials import MaterialScan
 from .signals import match_signals
 from .spec import (
@@ -23,6 +23,7 @@ from .spec import (
     Confidence,
     Dimension,
     DimensionState,
+    Domain,
     Level,
     Signal,
     SkillProfile,
@@ -98,6 +99,16 @@ def _aggregate(state: DimensionState, signals: list[Signal]) -> DimensionState:
     return state
 
 
+def _as_domain(value) -> Domain:
+    """``domain`` 既可能是 ``Domain``，也可能是字符串（"ai" / "人工智能"）。"""
+    if isinstance(value, Domain):
+        return value
+    text = str(value or "").strip()
+    if not text:
+        return Domain.UNKNOWN
+    return resolve_domain(text)
+
+
 def build_profile_from_signals(
     signals: Iterable[Signal],
     *,
@@ -106,7 +117,7 @@ def build_profile_from_signals(
 ) -> SkillProfile:
     """从已有证据构建画像。用于多轮对话合并。"""
     signal_list = list(signals)
-    resolved_domain = domain or detect_domain(text)[0]
+    resolved_domain = _as_domain(domain) if domain is not None else detect_domain(text)[0]
     profile = SkillProfile(domain=resolved_domain, text_length=len(text or ""))
     required = required_levels(resolved_domain)
     active = active_dimensions(resolved_domain)
@@ -119,14 +130,18 @@ def build_profile_from_signals(
 
     if resolved_domain.value == "unknown":
         profile.notes.append(
-            "你没提方向，所以只评估核心四维（编程、工具、数学、科研方法）；"
-            "方向相关的维度先不评估，免得让你补用不上的东西。"
-            "想做哪个方向直接说一声，我按那个方向重排。"
+            "你没提方向，所以按四维的通用要求评估（编程、工具、数学、科研方法）；"
+            "方向只影响门槛和学什么，想做哪个方向说一声，我按那个方向重排。"
         )
     else:
+        thresholds = [
+            f"{d.label}{profile.dimensions[d].required_label}"
+            for d in active
+            if profile.dimensions.get(d) and profile.dimensions[d].required
+        ]
         profile.notes.append(
-            f"按「{resolved_domain.label}」方向的要求评估，"
-            f"只看这个方向用得上的 {len(active)} 个维度。"
+            f"按「{resolved_domain.label}」方向的要求评估这四个固定维度，"
+            f"门槛分别是 " + "、".join(thresholds) + "。"
         )
     if len(text or "") < MIN_TEXT_FOR_CONFIDENCE:
         profile.notes.append("这段描述比较短，结论可能偏保守；多说几句会准一些。")
@@ -146,7 +161,7 @@ def build_profile(
     用户自己说的方向永远优先于关键词匹配。
     """
     detected, evidence = detect_domain(text)
-    resolved = domain or detected
+    resolved = _as_domain(domain) if domain is not None else detected
     if domain is not None:
         evidence = ""
     elif detected.value != "unknown":

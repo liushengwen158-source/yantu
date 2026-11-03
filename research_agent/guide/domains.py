@@ -26,6 +26,24 @@ KNOWLEDGE_DIR = Path(__file__).resolve().parent.parent / "knowledge"
 DOMAINS_PATH = KNOWLEDGE_DIR / "domains.json"
 
 # 用户明确表示「方向还没定」的说法。命中这些就不猜。
+# 旧方向 id 与常见叫法都能对上，避免用户按记忆里的名字输入时被拒。
+DOMAIN_ALIASES = {
+    "database": Domain.DATA,
+    "db": Domain.DATA,
+    "data": Domain.DATA,
+    "networks": Domain.SYSTEMS,
+    "network": Domain.SYSTEMS,
+    "system": Domain.SYSTEMS,
+    "systems": Domain.SYSTEMS,
+    "graphics": Domain.SOFTWARE,
+    "hci": Domain.SOFTWARE,
+    "software-engineering": Domain.SOFTWARE,
+    "ai4science": Domain.AI,
+    "ml": Domain.AI,
+    "dl": Domain.AI,
+    "machine-learning": Domain.AI,
+}
+
 NO_DOMAIN_HINTS = (
     "还没定",
     "没定方向",
@@ -128,14 +146,11 @@ def list_domains() -> list[DomainSpec]:
     """按固定顺序列出方向，供 CLI 与 agent 展示。"""
     order = [
         Domain.SYSTEMS,
-        Domain.NETWORKS,
         Domain.SECURITY,
-        Domain.DATABASE,
+        Domain.DATA,
         Domain.THEORY,
         Domain.SOFTWARE,
-        Domain.GRAPHICS,
         Domain.AI,
-        Domain.AI4SCIENCE,
     ]
     specs = load_domains()
     return [specs[d] for d in order if d in specs]
@@ -183,6 +198,8 @@ def resolve_domain(value: str) -> Domain:
     text = (value or "").strip()
     if not text:
         return Domain.UNKNOWN
+    if text.lower() in DOMAIN_ALIASES:
+        return DOMAIN_ALIASES[text.lower()]
     for spec in load_domains().values():
         if text == spec.domain.value or text == spec.name:
             return spec.domain

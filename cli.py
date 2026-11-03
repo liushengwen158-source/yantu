@@ -12,7 +12,7 @@
     python cli.py guide questions "..." 列出接下来该问的问题
     python cli.py guide domains         列出方向及其要求
     python cli.py guide explain 反向传播 解释一个概念
-    python cli.py guide tracks          列出可选研究方向
+    python cli.py guide domains         列出可选研究方向
 """
 
 from __future__ import annotations
@@ -257,7 +257,7 @@ def cmd_guide_roadmap(args: argparse.Namespace) -> int:
 
 def _resolve_domain_arg(value: str):
     """解析 --domain 参数。返回 Domain / None（未指定）/ False（无法识别）。"""
-    from research_agent.guide import list_tracks, resolve_domain
+    from research_agent.guide import list_domains, resolve_domain
 
     if not (value or "").strip() or value in ("general", "unknown"):
         return None
@@ -266,7 +266,7 @@ def _resolve_domain_arg(value: str):
     except ValueError as exc:
         print(f"{exc}")
         print("可选方向：")
-        for item in list_tracks():
+        for item in list_domains():
             print(f"  {item['id']:<12} {item['name']}")
         return False
 
@@ -333,20 +333,6 @@ def cmd_guide_explain(args: argparse.Namespace) -> int:
 
     print(render_miss(result))
     return 1
-
-
-def cmd_guide_tracks(args: argparse.Namespace) -> int:
-    from research_agent.guide import list_tracks
-
-    tracks = list_tracks()
-    if args.json:
-        print(json.dumps(tracks, ensure_ascii=False, indent=2))
-        return 0
-    for item in tracks:
-        print(f"{item['id']:<12} {item['name']}")
-        if item["why"]:
-            print(f"{'':<12} {item['why']}")
-    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -417,7 +403,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_explain = guide_sub.add_parser("explain", help="解释一个概念")
     p_explain.add_argument("term", help="概念名，如 反向传播、venv、过拟合")
-    p_explain.add_argument("--dimension", help="限定维度：python/shell/math/ml/dl/research")
+    p_explain.add_argument("--dimension", help="限定维度：coding/tools/math/research")
     p_explain.add_argument("--json", action="store_true")
     p_explain.set_defaults(func=cmd_guide_explain)
 
@@ -429,10 +415,6 @@ def main(argv: list[str] | None = None) -> int:
     p_questions.add_argument("--limit", type=int, default=3)
     p_questions.add_argument("--json", action="store_true")
     p_questions.set_defaults(func=cmd_guide_questions)
-
-    p_tracks = guide_sub.add_parser("tracks", help="列出可选研究方向（简要）")
-    p_tracks.add_argument("--json", action="store_true")
-    p_tracks.set_defaults(func=cmd_guide_tracks)
 
     p_domains = guide_sub.add_parser("domains", help="列出研究方向及要求（含论文与项目）")
     p_domains.add_argument("--json", action="store_true")

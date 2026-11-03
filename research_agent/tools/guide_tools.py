@@ -7,7 +7,7 @@
 
 - 评估只吃「用户说的话」和「用户显式授权的目录」，不主动探测任何路径
 - 扫目录必须是本地目录，传 URL 直接拒绝并提示先下载
-- 方向没定时不评估方向维，也不会默认按人工智能处理
+- 维度固定四个，方向只改门槛；方向没定也不主动追问，按通用要求评估
 - 路线里的每个阶段都带验收标准，缺验收的条目在生成时就被丢掉
 """
 from __future__ import annotations
@@ -19,7 +19,6 @@ from ..guide import (
     build_roadmap,
     explain,
     list_domains,
-    list_tracks,
     next_question,
     probe_plan,
     render_brief,
@@ -76,7 +75,7 @@ def _domain_or_error(value: str):
             "ok": False,
             "error": str(exc),
             "hint": "方向可选值见 domains 字段；不确定就不要传，留空表示还没定",
-            "domains": list_tracks(),
+            "domains": list_domains(),
         }
     return resolved, None
 
@@ -120,7 +119,7 @@ def guide_assess(
     data["brief"] = render_brief(profile)
     data["next_question"] = next_question(profile)
     if profile.domain is Domain.UNKNOWN:
-        data["domains"] = list_tracks()
+        data["domains"] = list_domains()
     if as_markdown:
         data["markdown"] = _clip(render_profile(profile))
     if scan is not None:
@@ -172,7 +171,7 @@ def guide_roadmap(
     data["ok"] = True
     data["brief"] = render_roadmap_brief(roadmap)
     if roadmap.domain is Domain.UNKNOWN:
-        data["domains"] = list_tracks()
+        data["domains"] = list_domains()
     if as_markdown:
         data["markdown"] = _clip(render_roadmap(roadmap))
     return data
@@ -217,7 +216,7 @@ def guide_explain(term: str, dimension: str = "") -> dict[str, Any]:
 
     Args:
         term: 概念名，如「三次握手」「栈溢出」「反向传播」「venv」
-        dimension: 可选，限定维度 coding/tools/math/research/systems/data/security/theory/ml/dl
+        dimension: 可选，限定维度 coding/tools/math/research（概念卡的领域标签仍可用于过滤）
     """
     if not (term or "").strip():
         return {"ok": False, "error": "没有指定概念", "hint": "传入 term，如 反向传播"}
@@ -244,12 +243,6 @@ def guide_explain(term: str, dimension: str = "") -> dict[str, Any]:
         "candidates": result["candidates"],
         "text": render_card(card),
     }
-
-
-def guide_tracks() -> dict[str, Any]:
-    """列出可选的研究方向：需要哪些能力、读哪些论文、基本功大概多少小时。"""
-    tracks = list_tracks()
-    return {"ok": True, "count": len(tracks), "tracks": tracks}
 
 
 def guide_domains() -> dict[str, Any]:

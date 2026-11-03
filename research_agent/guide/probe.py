@@ -17,29 +17,17 @@ from .spec import Dimension, DimensionState, Level, SkillProfile
 
 # 每个维度一个问题。都是开放式的：答完能继续判断，不是选择题。
 DIMENSION_QUESTIONS: dict[Dimension, str] = {
-    Dimension.CODING: "你平时写代码写到什么程度——是照着教程抄，还是能自己从头写一个能跑的东西？",
+    Dimension.CODING: "你平时写代码写到什么程度——是照着教程抄，还是能自己从头写一个能跑的东西？写过 C、SQL 或者跑过训练都算。",
     Dimension.TOOLS: "你在命令行里干活熟练吗，比如自己装环境、跑脚本、连服务器？",
-    Dimension.MATH: "数学这块你到哪一步了，比如能不能手推一个梯度或者看懂论文里的公式？",
+    Dimension.MATH: "数学这块你到哪一步了，比如能不能手推一个梯度、看懂论文里的公式或者写一段证明？",
     Dimension.RESEARCH: "你读过论文吗，是随便翻翻还是按方法读、也复现过别人的代码？",
-    Dimension.SYSTEMS: "你写过 C 或者碰过内存、多线程这类底层的东西吗？",
-    Dimension.DATA: "你写过 SQL 或者用 pandas 处理过真实数据吗？",
-    Dimension.SECURITY: "你接触过逆向、漏洞复现或者 CTF 这类东西吗？",
-    Dimension.THEORY: "你写过证明、做过归约吗，还是主要写代码？",
-    Dimension.ML: "传统机器学习你跑过吗，比如用 sklearn 做过分类或回归？",
-    Dimension.DL: "深度学习这块你到哪一步了——装过框架、跑过训练，还是改过网络结构？",
 }
 
 DIMENSION_REASONS: dict[Dimension, str] = {
     Dimension.CODING: "编程是所有方向的地基，先确定这一维才能决定从哪一层开始排。",
     Dimension.TOOLS: "工具不熟的话，后面每个实验都会卡在环境上，不是能力问题。",
-    Dimension.MATH: "不同方向对数学的要求差很多，这一维决定要不要先补公式。",
+    Dimension.MATH: "方向不同，对数学的要求也不同；这一维决定要不要先补公式或证明。",
     Dimension.RESEARCH: "读论文和做实验的方法可以单独补，但得先知道你有没有做过。",
-    Dimension.SYSTEMS: "这个方向的基本功在底层，不确认就没法判断该不该从 C 开始。",
-    Dimension.DATA: "数据与查询能力是这个方向的入口，先确认再排任务。",
-    Dimension.SECURITY: "安全方向的门槛在二进制与协议，需要单独确认。",
-    Dimension.THEORY: "理论方向看的是证明能力，和写代码是两套本事。",
-    Dimension.ML: "这个方向要先有机器学习的基本概念，之后才好谈模型。",
-    Dimension.DL: "框架与训练经验决定你能不能直接上手复现，还是要先补一轮。",
 }
 
 DOMAIN_OPTIONS = [spec.name for spec in list_domains()]
