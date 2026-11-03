@@ -19,9 +19,22 @@ from research_agent.guide import (
     Level,
     Source,
     build_profile,
+    build_roadmap,
+    explain,
+    get_concept,
+    list_tracks,
     merge_profiles,
     next_question,
+    render_card,
+    render_roadmap,
     scan_materials,
+    validate_concepts,
+)
+from research_agent.tools.guide_tools import (
+    guide_assess,
+    guide_explain,
+    guide_roadmap,
+    guide_tracks,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "guide_materials"
@@ -205,6 +218,143 @@ class TestMaterials(unittest.TestCase):
     def test_scan_is_json_serializable(self) -> None:
         scan = scan_materials(FIXTURES)
         json.dumps(scan.to_dict(), ensure_ascii=False)
+
+
+ADVANCED = (
+    "我写过类，也写过包。用过 Linux 服务器，配过 PATH，写过 bash 脚本。"
+    "学过线性代数，能推梯度。上过机器学习课，用 sklearn 跑过分类，调过超参。"
+    "跑过训练，改过网络结构。读过 5 篇论文，复现过别人的实验，做过实验记录。"
+)
+
+
+class TestRoadmap(unittest.TestCase):
+    def test_beginner_starts_at_first_stage(self) -> None:
+        r = build_roadmap(build_profile("我大一，Python 只会 print，没用过命令行。"))
+        self.assertEqual(r.start.id, "stage0")
+        self.assertEqual(r.skipped, [])
+        self.assertGreater(r.total_hours, 0)
+
+    def test_unknown_dimensions_are_not_skipped(self) -> None:
+        """什么都没说时不能默认你会，一阶段都不跳。"""
+        r = build_roadmap(build_profile(""))
+        self.assertEqual(r.skipped, [])
+        self.assertEqual(r.start.id, "stage0")
+
+    def test_skip_comes_with_reason(self) -> None:
+        r = build_roadmap(build_profile(ADVANCED), track="cv")
+        self.assertGreater(len(r.skipped), 0)
+        for item in r.skipped:
+            self.assertTrue(item["reason"], "跳过阶段必须给出可反驳的理由")
+            self.assertIn("已是", item["reason"])
+        self.assertEqual(r.start.id, "stage4")
+
+    def test_every_task_has_acceptance(self) -> None:
+        for track in ["general", *[t["id"] for t in list_tracks()]]:
+            r = build_roadmap(build_profile("我只会一点 python。"), track=track)
+            for stage in r.stages:
+                for task in stage.tasks:
+                    self.assertTrue(task.acceptance, f"{stage.id}/{task.id} 没有验收标准")
+
+    def test_track_expands_the_branch_stage(self) -> None:
+        r = build_roadmap(build_profile("我只会一点 python。"), track="cv")
+        stage = next(s for s in r.stages if s.is_track)
+        self.assertEqual([t.id for t in stage.tasks], ["track.read", "track.repro", "track.project"])
+        self.assertEqual(r.track.id, "cv")
+        self.assertTrue(all(p.get("title") for p in r.track.papers))
+
+    def test_unknown_track_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            build_roadmap(build_profile("我只会一点 python。"), track="no-such-track")
+
+    def test_render_shows_acceptance_and_reason(self) -> None:
+        r = build_roadmap(build_profile(ADVANCED), track="cv")
+        text = render_roadmap(r)
+        self.assertIn("已跳过", text)
+        self.assertIn("验收：", text)
+        self.assertIn("预计投入", text)
+
+
+class TestConcepts(unittest.TestCase):
+    def test_exact_and_alias(self) -> None:
+        self.assertEqual(explain("反向传播")["card"]["id"], "backprop")
+        self.assertEqual(explain("venv")["card"]["id"], "venv")
+        self.assertEqual(explain("BP")["match"], "alias")
+
+    def test_alias_inside_a_sentence(self) -> None:
+        r = explain("torch.cuda.is_available() 是 false")
+        self.assertTrue(r["found"])
+        self.assertEqual(r["card"]["id"], "cuda")
+
+    def test_miss_does_not_fabricate(self) -> None:
+        r = explain("量子纠缠")
+        self.assertFalse(r["found"])
+        self.assertIsNone(r["card"])
+        self.assertIsInstance(r["candidates"], list)
+
+    def test_all_cross_references_are_valid(self) -> None:
+        self.assertEqual(validate_concepts(), [])
+
+    def test_card_has_all_sections(self) -> None:
+        card = get_concept("backprop")
+        text = render_card(card)
+        for part in ("一句话：", "类比：", "常见误解：", "前置：", "下一步：", "自检："):
+            self.assertIn(part, text)
+
+    def test_every_concept_is_reachable_by_name(self) -> None:
+        for track in list_tracks():
+            self.assertTrue(track["id"])
+        for term in ("过拟合", "交叉验证", "消融实验", "三遍读法", "Docker"):
+            self.assertTrue(explain(term)["found"], f"{term} 查不到")
+
+
+class TestGuideTools(unittest.TestCase):
+    """工具层约定：返回 dict、不抛异常、出错带 hint。"""
+
+    def test_assess_without_input_returns_hint(self) -> None:
+        r = guide_assess()
+        self.assertFalse(r["ok"])
+        self.assertIn("hint", r)
+
+    def test_assess_carries_evidence(self) -> None:
+        r = guide_assess("我写过爬虫，没用过命令行。")
+        self.assertTrue(r["ok"])
+        py = next(d for d in r["dimensions"] if d["dimension"] == "python")
+        self.assertEqual(py["level"], 2)
+        self.assertTrue(py["signals"][0]["quote"])
+        self.assertIn("markdown", r)
+
+    def test_scan_url_is_rejected(self) -> None:
+        r = guide_assess("我写过爬虫", scan_dir="https://github.com/x/y")
+        self.assertFalse(r["ok"])
+        self.assertIn("本地", r["hint"])
+
+    def test_scan_missing_dir_is_readable_error(self) -> None:
+        r = guide_assess("我写过爬虫", scan_dir=str(FIXTURES / "no-such-dir"))
+        self.assertFalse(r["ok"])
+        self.assertIn("hint", r)
+
+    def test_roadmap_tool_keeps_acceptance(self) -> None:
+        r = guide_roadmap("我大一，Python 只会 print。", track="cv")
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["track"]["id"], "cv")
+        for stage in r["stages"]:
+            for task in stage["tasks"]:
+                self.assertTrue(task["acceptance"])
+
+    def test_invalid_track_lists_options(self) -> None:
+        r = guide_roadmap("我只会一点 python。", track="no-such")
+        self.assertFalse(r["ok"])
+        self.assertTrue(r["tracks"])
+
+    def test_explain_miss_is_honest(self) -> None:
+        r = guide_explain("量子纠缠")
+        self.assertFalse(r["ok"])
+        self.assertIn("没有", r["error"])
+        self.assertIn("text", r)
+
+    def test_tracks_tool(self) -> None:
+        r = guide_tracks()
+        self.assertEqual(r["count"], len(list_tracks()))
 
 
 if __name__ == "__main__":

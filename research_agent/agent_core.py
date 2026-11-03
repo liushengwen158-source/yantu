@@ -1,4 +1,6 @@
-"""openJiuwen 适配层：把环境配置能力组装成一个 ReAct agent。
+"""openJiuwen 适配层：把三类能力组装成一个 ReAct agent。
+
+能力：环境配置、论文复现可行性、新手入门引导（基础评估 / 学习路线 / 概念解释）。
 
 用到的框架接口（openjiuwen 0.1.19）：
 - ``openjiuwen.core.foundation.tool.tool``      把普通函数变成 LocalFunction 工具
@@ -19,9 +21,10 @@ from typing import Any
 
 from . import llm
 from .tools.env_tools import env_check, env_explain, env_fix, env_guidance, env_plan
+from .tools.guide_tools import guide_assess, guide_explain, guide_roadmap, guide_tracks
 from .tools.repro_tools import repro_diff, repro_report, repro_scan
 
-SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，负责两件事：**开发环境配置**与**论文复现可行性判断**。
+SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，负责三件事：**开发环境配置**、**论文复现可行性判断**、**新手入门引导**。
 
 环境工具：
 - env_check：体检本机环境，返回 Python/pip/conda/Git/SSH/GPU/CUDA/PyTorch 的真实状态
@@ -35,15 +38,28 @@ SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，�
 - repro_diff：把需求与本机比对，给出四档结论：block 物理不可能 / degrade 改配置能跑 / add 装一下即可 / ok 满足
 - repro_report：输出完整的 Markdown 可行性报告
 
+新手引导工具：
+- guide_assess：从用户原话（可选加其授权的目录）推断六维能力画像：Python、命令行、数学、机器学习、深度学习、科研流程
+- guide_roadmap：按画像生成分阶段路线，每项任务都有验收标准；方向可选 cv/nlp/system/data/theory/ai4science
+- guide_explain：解释一个概念，返回一句话定义、类比、常见误解、前置与下一步
+- guide_tracks：列出可选研究方向
+
 工作方式：
 1. 用户问环境问题时，先 env_check 或 env_guidance 拿到事实，再回答，不要凭印象猜测。
 2. 用户问「这篇论文的代码我能不能跑」时，先 repro_diff，不要凭经验判断。
-3. 给命令前确认它适用于用户的操作系统。
-4. 要执行安装/卸载类命令时，先把命令和影响告诉用户，等用户明确说要执行再调用 env_fix 并传 approve_system=true。
-5. 复现结论要分清程度：卡数不够、显存差 6 倍以上属于物理阻塞，直说要换算力；版本不符属于装一下就好，别夸大。
-6. 引用复现证据时带上来源（如 README.md:5）和可信度（L2 代码推断 / L3 经验推测）。
-7. 仓库里没写、工具没返回的信息，直说不知道，不要编造版本号、卡数或命令。
-8. 回答简洁：先结论，再步骤，命令用代码块。
+3. 用户问「我该学什么 / 我这样算入门了吗」时，先 guide_assess；要出路线再调 guide_roadmap。
+4. 判断水平只能依据用户自己说的话，或用户明确授权扫描的目录。绝不主动猜路径、扫盘、读用户没提到的文件。
+5. 画像里每条结论都要能指回原话或文件路径。用户问「为什么这么判」时，答证据，不要重新算一个分数。
+6. 一次只问一个问题，问最缺的那一维；不要连续盘问，也不要给用户发问卷。
+7. 没有证据的维度就说「还不确定」，不要按 0 分当作「不会」。
+8. 解释概念用 guide_explain；它说没有，就直说概念库里没有，不要自己编定义。
+9. 路线里的阶段如果用户不认同（比如他会命令行但被判定不会），按用户的说法重排，并说明改了什么。
+10. 给命令前确认它适用于用户的操作系统。
+11. 要执行安装/卸载类命令时，先把命令和影响告诉用户，等用户明确说要执行再调用 env_fix 并传 approve_system=true。
+12. 复现结论要分清程度：卡数不够、显存差 6 倍以上属于物理阻塞，直说要换算力；版本不符属于装一下就好，别夸大。
+13. 引用复现证据时带上来源（如 README.md:5）和可信度（L2 代码推断 / L3 经验推测）。
+14. 仓库里没写、工具没返回的信息，直说不知道，不要编造版本号、卡数或命令。
+15. 回答简洁：先结论，再步骤，命令用代码块。
 """
 
 
@@ -56,7 +72,7 @@ def _dump(payload: Any, limit: int = 6000) -> str:
 
 
 def build_tools():
-    """构造全部 LocalFunction 工具（5 个环境 + 3 个复现）。"""
+    """构造全部 LocalFunction 工具（5 个环境 + 3 个复现 + 4 个引导）。"""
     from openjiuwen.core.foundation.tool import tool
 
     @tool(
@@ -171,6 +187,85 @@ def build_tools():
         """
         return _dump(repro_report(repo_path), limit=8000)
 
+    # ---- 新手引导 ------------------------------------------------------
+
+    @tool(
+        name="guide_assess",
+        description=(
+            "从用户原话推断六维能力画像（Python、命令行、数学、机器学习、深度学习、科研流程），"
+            "每条结论都带原话或文件路径来源，没有证据的维度标未知、不按 0 分处理。"
+            "scan_dir 只在用户明确授权时传，用来扫描其本地 PDF/notebook/笔记目录。"
+        ),
+    )
+    def guide_assess_tool(text: str, scan_dir: str = "", as_markdown: bool = True) -> str:
+        """评估新手基础。
+
+        Args:
+            text: 用户原话，可跨多轮拼接
+            scan_dir: 用户授权扫描的本地目录，未授权时留空
+            as_markdown: 是否附带可读表格
+        """
+        return _dump(guide_assess(text=text, scan_dir=scan_dir, as_markdown=as_markdown))
+
+    @tool(
+        name="guide_roadmap",
+        description=(
+            "按能力画像生成分阶段学习路线，每项任务都带验收标准和预计小时数；"
+            "已满足的阶段会跳过并说明理由，未确认的维度不会被默认跳过。"
+            "track 可选 cv/nlp/system/data/theory/ai4science，留空表示还没定方向。"
+        ),
+    )
+    def guide_roadmap_tool(
+        text: str,
+        scan_dir: str = "",
+        track: str = "general",
+        weekly_hours: int = 0,
+        as_markdown: bool = True,
+    ) -> str:
+        """生成学习路线。
+
+        Args:
+            text: 用户原话，用来推断水平
+            scan_dir: 用户授权扫描的本地目录
+            track: 方向 id，见 guide_tracks；general 表示未定
+            weekly_hours: 每周可投入小时数，0 表示用默认 10 小时
+            as_markdown: 是否附可读路线
+        """
+        return _dump(
+            guide_roadmap(
+                text=text,
+                scan_dir=scan_dir,
+                track=track,
+                weekly_hours=weekly_hours,
+                as_markdown=as_markdown,
+            ),
+            limit=9000,
+        )
+
+    @tool(
+        name="guide_explain",
+        description=(
+            "解释一个科研入门概念：一句话定义、类比、常见误解、前置概念、下一步、自检问题。"
+            "概念库查不到时会返回候选，不要自己编定义。"
+        ),
+    )
+    def guide_explain_tool(term: str, dimension: str = "") -> str:
+        """解释概念。
+
+        Args:
+            term: 概念名，如「反向传播」「过拟合」「venv」
+            dimension: 可选，限定维度 python/shell/math/ml/dl/research
+        """
+        return _dump(guide_explain(term=term, dimension=dimension))
+
+    @tool(
+        name="guide_tracks",
+        description="列出可选的科研方向及其适合人群、必读论文数量，供用户选方向。",
+    )
+    def guide_tracks_tool() -> str:
+        """列出可选方向。"""
+        return _dump(guide_tracks())
+
     return [
         env_check_tool,
         env_guidance_tool,
@@ -180,6 +275,10 @@ def build_tools():
         repro_scan_tool,
         repro_diff_tool,
         repro_report_tool,
+        guide_assess_tool,
+        guide_roadmap_tool,
+        guide_explain_tool,
+        guide_tracks_tool,
     ]
 
 
@@ -209,7 +308,7 @@ def build_agent(
 
     card = AgentCard(
         name="yantu_agent",
-        description="计算机科研入门助手：开发环境诊断与修复、论文复现可行性判断",
+        description="计算机科研入门助手：环境诊断与修复、论文复现可行性、新手基础评估与学习路线",
         input_params={
             "type": "object",
             "properties": {"query": {"type": "string", "description": "用户的问题"}},

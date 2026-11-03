@@ -11,12 +11,28 @@
 
 后续的学习路线（roadmap）以 ``SkillProfile`` 为输入，概念解释（concepts）
 以路线上的卡点为触发条件，因此三者共用同一份画像，不各自维护一份判断。
+授权目录的材料由 ``materials`` 扫描，作为 ``source=FILE`` 的旁证并入画像，
+不参与定档。
 """
 
+from .concepts import (
+    explain,
+    get as get_concept,
+    list_concepts,
+    render_card,
+    render_miss,
+    validate as validate_concepts,
+)
 from .materials import Material, MaterialScan, scan_materials
 from .profile import build_profile, build_profile_from_signals, merge_profiles
 from .probe import next_question
 from .render import render_brief, render_profile, render_table
+from .roadmap import (
+    build_roadmap,
+    list_tracks,
+    render_brief as render_roadmap_brief,
+    render_roadmap,
+)
 from .signals import extract, load_rules, split_clauses, split_sentences
 from .spec import (
     Confidence,
@@ -40,14 +56,24 @@ __all__ = [
     "Source",
     "build_profile",
     "build_profile_from_signals",
+    "build_roadmap",
+    "explain",
+    "get_concept",
+    "list_concepts",
+    "list_tracks",
     "merge_profiles",
     "extract",
     "load_rules",
     "next_question",
     "render_brief",
+    "render_card",
+    "render_miss",
     "render_profile",
+    "render_roadmap",
+    "render_roadmap_brief",
     "render_table",
     "scan_materials",
     "split_clauses",
     "split_sentences",
+    "validate_concepts",
 ]

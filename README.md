@@ -2,10 +2,11 @@
 
 面向计算机专业本科生 / 低年级研究生的科研入门 agent，基于 [openJiuwen](https://openjiuwen.com) agent-core 构建。
 
-当前完成两个能力模块：
+当前完成三个能力模块：
 
 1. **环境配置**（可运行的代码 + 技能）：检测 → 指引 → 可执行安装
 2. **论文复现可行性**（可运行的代码）：从我有什么 → 论文要什么 → 差在哪
+3. **新手引导**（可运行的代码 + 知识库）：基础评估 → 学习路线 → 概念解释
 
 ## 它解决什么问题
 
@@ -89,7 +90,7 @@ git clone --depth 1 https://github.com/openJiuwen-ai/agent-core.git openjiuwen
 
 ### 适配层
 
-`research_agent/agent_core.py` 把两类能力注册成一个 ReAct agent（`yantu_agent`），共 8 个工具：
+`research_agent/agent_core.py` 把三类能力注册成一个 ReAct agent（`yantu_agent`），共 12 个工具：
 
 | 分组 | 工具 | 作用 |
 | --- | --- | --- |
@@ -101,6 +102,10 @@ git clone --depth 1 https://github.com/openJiuwen-ai/agent-core.git openjiuwen
 | 复现 | `repro_scan` | 从论文仓库提取环境需求（带文件名:行号） |
 | 复现 | `repro_diff` | 与本机比对，给四档结论与差距矩阵 |
 | 复现 | `repro_report` | 生成完整的 Markdown 可行性报告 |
+| 引导 | `guide_assess` | 从原话（可加授权目录）出六维能力画像 |
+| 引导 | `guide_roadmap` | 生成分阶段路线，每项任务带验收标准 |
+| 引导 | `guide_explain` | 解释概念：定义 / 类比 / 误解 / 前置 / 下一步 |
+| 引导 | `guide_tracks` | 列出可选研究方向 |
 
 实现方式：
 
@@ -108,19 +113,22 @@ git clone --depth 1 https://github.com/openJiuwen-ai/agent-core.git openjiuwen
 - `ReActAgent(card=AgentCard(...))` + `ReActAgentConfig` 配置模型与系统提示词
 - `agent.ability_manager.add_ability(t.card, t)` 注册工具
 
-系统提示词里写死了两条行为约束，避免模型即兴发挥：
+系统提示词里写死了几条行为约束，避免模型即兴发挥：
 
 - 问「这篇论文的代码我能不能跑」→ 先调 `repro_diff`，不许凭经验判断
 - 引用复现结论必须带来源（`README.md:5`）和可信度（L2/L3）；仓库里没写的，直说没写
+- 判断用户水平只能依据他自己说的话或明确授权的目录，不许猜路径、扫盘
+- 没有证据的维度说「还不确定」，不按 0 分当作「不会」；概念库查不到就直说没有
 
-已验证：agent 构建成功，8 个工具全部注册进 `ability_manager` 与 `resource_mgr`：
+已验证：agent 构建成功，12 个工具全部注册进 `ability_manager` 与 `resource_mgr`：
 
 ```
 names = ['env_check', 'env_guidance', 'env_explain', 'env_plan', 'env_fix',
-         'repro_scan', 'repro_diff', 'repro_report']
+         'repro_scan', 'repro_diff', 'repro_report',
+         'guide_assess', 'guide_roadmap', 'guide_explain', 'guide_tracks']
 ```
 
-工具函数本体分别在 `tools/env_tools.py` 与 `tools/repro_tools.py`，都是纯 Python，可脱离框架单独测试。
+工具函数本体分别在 `tools/env_tools.py`、`tools/repro_tools.py` 与 `tools/guide_tools.py`，都是纯 Python，可脱离框架单独测试。
 
 ## 作为技能使用
 
@@ -233,17 +241,102 @@ python -m unittest discover -s tests -v
 - `torch` 之外只对 `tensorflow` / `jax` 等做了版本提取，判定侧目前只探测了 torch 的安装情况
 - 不做依赖求解（`pip` 冲突、conda 环境解析交给专门工具）
 
+## 新手引导
+
+新手最先卡住的往往不是「不知道学什么」，而是「不知道自己现在在哪」。所以这块的顺序是：先定位，再给路线，概念卡按需补。
+
+```
+基础评估 → 你现在在哪（六维：Python / 命令行 / 数学 / ML / DL / 科研流程）
+学习路线 → 从这到能干活的路（每项任务带验收标准）
+概念解释 → 路上每个卡点的翻译（定义 / 类比 / 误解 / 前置 / 下一步）
+```
+
+### 评估只认两种输入
+
+| 输入 | 来源 | 标成 | 局限 |
+| --- | --- | --- | --- |
+| 自述 | 用户自己说的话 | 自述 | 可能高估 |
+| 文件 | 用户显式授权的目录：PDF / notebook / 笔记 | 文件 | 只证明「材料在」，不证明「读过」 |
+
+没有问卷、没有判题，也**不主动扫盘**。自述和文件对不上时（比如自称 DL 熟练，目录里只有报错日志），把它作为「对撞」摆出来，不替用户下结论：
+
+```
+维度               档位    置信  来源        证据                        为什么这么判
+深度学习与框架     从零    中    自述+文件    「也没碰过深度学习」 等 3 条  没碰过深度学习，路线前段要先…
+科研流程           能干活  低    文件 papers/attention.pdf   「1 篇论文旁边有同名笔记…」  读过并留下笔记，但只作旁证
+```
+
+### 可解释性写成代码，不是写成文档
+
+1. **每条结论都能指回证据**：原话逐字保留，文件证据带路径；不给孤立总分
+2. **来源分列**：自述 / 文件 / 推断分开显示，不混算成一个分数
+3. **没采集 ≠ 不会**：未知标 `UNKNOWN`，不按 0 分计入
+4. **矛盾就不定档**：两句话指向的水平差太远时，标待确认并直接问
+5. **匹配限定在短句内**：`我没用过命令行，也没碰过torch` 不会把命令行那句算成深度学习的证据
+
+### 路线：跳过要讲理由
+
+```
+阶段 1 工具与工程     终端 / 虚拟环境 / Git / SSH（可直接复用 env-setup）
+阶段 2 数学与 ML 底子  线代·概率·梯度 + 一门 ML 课 + 手写反向传播
+阶段 3 复现一篇小论文  跑通 → 对上数字 → 改一处 → 记录
+阶段 4 读论文的方法    综述画脉络 + 三遍法 + 经典 3 篇 + 近三年 5 篇
+阶段 5 方向分岔        CV / NLP-LLM / 系统 / 数据推荐 / 理论 / AI4Science
+阶段 6 改进与实验管理  消融 / 多种子 / 实验追踪
+阶段 7 写作与开源      报告 / 仓库 / 讲一次
+```
+
+- 已具备的阶段跳过，并写明依据：「你的命令行已是『能干活』档（要求 ≥有基础）」
+- 维度未确认**不跳过**，不默认你会
+- 每项任务必须有验收标准，没有验收的条目在生成时就被丢掉
+- 每个方向 3 篇阅读清单，按「入门 / 必读 / 进阶」标注，并注明「不必复现全部」
+
+```bash
+# 从对话出画像（可选授权扫描目录）
+python cli.py guide profile "我大一，Python 只会 print，没用过命令行" --scan ~/Desktop/papers
+
+# 生成路线，指定方向，落成 Markdown
+python cli.py guide roadmap "我大一，Python 只会 print" --track cv --out plan.md
+
+# 解释概念
+python cli.py guide explain "反向传播"
+python cli.py guide tracks
+```
+
+### 概念库
+
+35 张概念卡，路线里的「相关概念」直接指回卡片。检索顺序：id → 名称 → 别名 → 句内别名 → 模糊候选；**查不到就直说没有**，不用模型生成定义：
+
+```
+概念库里没有「量子纠缠」这张卡。
+也没有足够接近的条目。可以换个说法，或者告诉我上下文，我按你的场景解释。
+```
+
+### 边界
+
+- 不解析 PDF 正文，论文是否真读过只看「有没有同名笔记」这种旁证（正文抽取在 `document-processing` 分支）
+- 评估靠对话里的关键词与固定规则，说法超出规则覆盖范围时会标未知，而不是硬猜
+- 路线内容是通用入门路径，不替代导师的方向判断；预计时长是估计值，不是承诺
+
+### 已验证
+
+43 项回归，重点盯可解释性：否定句不被读成正面证据、矛盾不硬猜、跨短句不串维度、
+文件证据不定档、跳过阶段必须带理由、每项任务都有验收、概念交叉引用无悬空。
+
 ## 目录结构
 
 ```
 yantu/
 ├── openjiuwen/                    # openJiuwen agent-core 源码（git clone，editable 安装）
 ├── research_agent/
-│   ├── knowledge/                 # 环境配置知识库
-│   │   ├── env_kb.json            # 结构化条目：检测项 → 原因 → 步骤 → 验证
+│   ├── knowledge/                 # 知识库
+│   │   ├── env_kb.json            # 环境条目：检测项 → 原因 → 步骤 → 验证
 │   │   ├── python_env.md          # Python 与包管理详述
 │   │   ├── git.md                 # Git 与代码托管详述
-│   │   └── gpu_dl.md              # GPU 与深度学习详述
+│   │   ├── gpu_dl.md              # GPU 与深度学习详述
+│   │   ├── guide_signals.json     # 对话证据规则（40 条，正 28 / 负 12）
+│   │   ├── roadmap.json           # 学习路线的阶段模板与六个方向
+│   │   └── concepts.json          # 概念卡（35 张，含前置/下一步关系）
 │   ├── envsetup/
 │   │   ├── models.py              # 数据结构（Status / CheckResult / EnvReport）
 │   │   ├── probes.py              # 只读探测原语
@@ -257,17 +350,28 @@ yantu/
 │   │   ├── profile.py             # 本机 → 画像（含磁盘/内存/容器）
 │   │   ├── diff.py                # 四档判定 + 修复建议
 │   │   └── render.py              # 差距矩阵 / Markdown 报告
+│   ├── guide/                     # 新手引导
+│   │   ├── spec.py                # 契约：六维 / 四档 / 证据来源 / 画像
+│   │   ├── signals.py             # 对话 → 证据（否定优先、短句内匹配）
+│   │   ├── profile.py             # 证据 → 画像（矛盾不猜、文件不定档）
+│   │   ├── materials.py           # 授权目录 → 文件证据（PDF/notebook/笔记）
+│   │   ├── roadmap.py             # 画像 → 阶段路线（跳过给理由、任务带验收）
+│   │   ├── concepts.py            # 概念检索（别名 / 句内 / 模糊候选）
+│   │   ├── probe.py               # 缺信息时一次只问一句
+│   │   └── render.py              # 可核对表格 / 路线 Markdown
 │   ├── tools/env_tools.py         # 纯 Python 工具函数（可单独测试）
 │   ├── tools/repro_tools.py       # 复现工具函数（agent 用）
-│   ├── agent_core.py              # openJiuwen 适配层（ReActAgent + 8 个工具）
+│   ├── tools/guide_tools.py       # 引导工具函数（agent 用）
+│   ├── agent_core.py              # openJiuwen 适配层（ReActAgent + 12 个工具）
 │   ├── agent.py                   # 问答层（有 Key 走模型，无 Key 走检索）
 │   └── llm.py                     # OpenAI 兼容客户端
 ├── skills/env-setup/              # 可被 JiuwenSwarm 直接调用的技能包
 │   ├── SKILL.md
 │   └── scripts/env_setup.py
 ├── tests/
-│   ├── fixtures/                  # 回归用的仓库样本
-│   └── test_repro.py              # 12 项单元测试
+│   ├── fixtures/                  # 回归样本（论文仓库 / 学习材料目录）
+│   ├── test_repro.py              # 17 项：复现判定
+│   └── test_guide.py              # 43 项：画像 / 材料 / 路线 / 概念 / 工具
 └── cli.py                         # 命令行入口
 ```
 
@@ -311,9 +415,14 @@ yantu/
 
 - [x] 论文复现可行性：从配套代码提取环境需求，与本机比对给出四档结论
 - [x] 复现能力接进 agent 工具层（repro_scan / repro_diff / repro_report）
+- [x] 基础评估：对话式六维画像，每条结论指回原话或文件路径
+- [x] 学习路线：阶段化路线 + 验收标准 + 六个方向分岔
+- [x] 概念解释：35 张概念卡，别名与句内检索，查不到直说没有
 - [ ] 论文 PDF 解析：把正文里的「we train on 8×A100」也纳入需求（当前只认代码）
+- [ ] 评估接入 PDF 正文：读过哪些论文不再只靠文件名（依赖 document-processing 分支）
+- [ ] 路线进度追踪：勾选任务、记录实际耗时、按完成度重排
 - [ ] 复现能力做成 JiuwenSwarm 技能（现在只有 CLI + agent 工具）
 - [ ] 环境快照对比（两次检测的 diff，看修复是否生效）
 - [ ] 文献阅读模块：arXiv 检索、论文速读、笔记沉淀
 - [ ] 实验管理：跑通 baseline、记录超参、复现他人结果
-- [ ] openJiuwen 多 agent 协作：环境 agent 与文献 agent 分工
+- [ ] openJiuwen 多 agent 协作：环境 agent、文献 agent、引导 agent 分工

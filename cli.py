@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""命令行入口：不接大模型也能直接用的环境配置工具。
+"""命令行入口：不接大模型也能直接用的科研入门工具。
 
 用法：
     python cli.py check                 体检，输出可读报告
@@ -7,6 +7,10 @@
     python cli.py plan                  只看要跑哪些命令（不执行）
     python cli.py fix [--risk config]   执行修复动作，system 级需 --yes
     python cli.py ask "torch 装不上"     问知识库 + 大模型（需配 API Key）
+    python cli.py guide profile "..."   从对话推断六维能力画像
+    python cli.py guide roadmap "..."   生成带验收标准的学习路线
+    python cli.py guide explain 反向传播 解释一个概念
+    python cli.py guide tracks          列出可选研究方向
 """
 
 from __future__ import annotations
@@ -188,10 +192,99 @@ def cmd_guide_profile(args: argparse.Namespace) -> int:
     return 0
 
 
+def _guide_inputs(args: argparse.Namespace):
+    """读取对话文本与授权目录，两者都可以没有。"""
+    from pathlib import Path
+
+    from research_agent.guide import scan_materials
+
+    if args.file:
+        path = Path(args.file)
+        if not path.exists():
+            raise FileNotFoundError(f"找不到文件：{args.file}")
+        text = path.read_text(encoding="utf-8")
+    else:
+        text = args.text or ""
+
+    scan = scan_materials(args.scan) if args.scan else None
+    return text, scan
+
+
+def cmd_guide_roadmap(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from research_agent.guide import build_profile, build_roadmap, render_roadmap
+
+    try:
+        text, scan = _guide_inputs(args)
+    except (FileNotFoundError, NotADirectoryError) as exc:
+        print(f"读取失败：{exc}")
+        return 2
+
+    if not text.strip() and scan is None:
+        print("生成路线需要一点信息：描述一下你现在的情况，或者用 --scan 授权扫描材料目录。")
+        print('  python cli.py guide roadmap "我大一，Python 只会 print，没跑过训练"')
+        return 2
+
+    profile = build_profile(text, scan=scan)
+    try:
+        roadmap = build_roadmap(profile, track=args.track, weekly_hours=args.hours)
+    except ValueError as exc:
+        print(f"{exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(roadmap.to_dict(), ensure_ascii=False, indent=2))
+        return 0
+
+    output = render_roadmap(roadmap)
+    if args.out:
+        Path(args.out).write_text(output, encoding="utf-8")
+        print(f"路线已写入 {args.out}")
+    else:
+        print(output)
+    return 0
+
+
+def cmd_guide_explain(args: argparse.Namespace) -> int:
+    from research_agent.guide import explain, render_card, render_miss
+
+    result = explain(args.term, dimension=args.dimension)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result["found"] else 1
+
+    if result["found"]:
+        print(render_card(result["card"]))
+        if result["candidates"]:
+            print("")
+            print("也可能你想问：")
+            for item in result["candidates"]:
+                print(f"  - {item['name']}（{item['id']}）")
+        return 0
+
+    print(render_miss(result))
+    return 1
+
+
+def cmd_guide_tracks(args: argparse.Namespace) -> int:
+    from research_agent.guide import list_tracks
+
+    tracks = list_tracks()
+    if args.json:
+        print(json.dumps(tracks, ensure_ascii=False, indent=2))
+        return 0
+    for item in tracks:
+        print(f"{item['id']:<12} {item['name']}")
+        if item["why"]:
+            print(f"{'':<12} {item['why']}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _ensure_console_encoding()
     parser = argparse.ArgumentParser(
-        prog="yantu", description="计算机科研入门 agent · 环境配置"
+        prog="yantu", description="计算机科研入门 agent · 环境配置 / 论文复现 / 新手引导"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -242,6 +335,26 @@ def main(argv: list[str] | None = None) -> int:
     p_profile.add_argument("--scan", help="授权扫描的材料目录（PDF / notebook / 笔记）")
     p_profile.add_argument("--json", action="store_true", help="输出 JSON（给 agent 或脚本用）")
     p_profile.set_defaults(func=cmd_guide_profile)
+
+    p_roadmap = guide_sub.add_parser("roadmap", help="按画像生成学习路线")
+    p_roadmap.add_argument("text", nargs="?", default="", help="对话内容（或用 --file）")
+    p_roadmap.add_argument("--file", help="从文本文件读取对话内容")
+    p_roadmap.add_argument("--scan", help="授权扫描的材料目录")
+    p_roadmap.add_argument("--track", default="general", help="方向 id，见 guide tracks")
+    p_roadmap.add_argument("--hours", type=int, help="每周可投入小时数（默认 10）")
+    p_roadmap.add_argument("--out", help="写入指定 Markdown 文件")
+    p_roadmap.add_argument("--json", action="store_true")
+    p_roadmap.set_defaults(func=cmd_guide_roadmap)
+
+    p_explain = guide_sub.add_parser("explain", help="解释一个概念")
+    p_explain.add_argument("term", help="概念名，如 反向传播、venv、过拟合")
+    p_explain.add_argument("--dimension", help="限定维度：python/shell/math/ml/dl/research")
+    p_explain.add_argument("--json", action="store_true")
+    p_explain.set_defaults(func=cmd_guide_explain)
+
+    p_tracks = guide_sub.add_parser("tracks", help="列出可选研究方向")
+    p_tracks.add_argument("--json", action="store_true")
+    p_tracks.set_defaults(func=cmd_guide_tracks)
 
     args = parser.parse_args(argv)
     return args.func(args)
