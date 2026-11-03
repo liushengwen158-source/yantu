@@ -1,10 +1,12 @@
 """从对话文本里抽能力证据。
 
-三条硬约束（对应「解释性必须好」）：
+四条硬约束（对应「解释性必须好」）：
 
-1. **只认原话**：``quote`` 保存用户说的完整句子，不改写、不摘要——他要能一眼认出这是自己说的。
-2. **否定优先**：``没写过类`` 不能被 ``写过类`` 这条规则吃成正面证据。
-3. **含糊降级**：``还行 / 一般 / 大概`` 只算弱证据，单独一条不给维度定档。
+1. **只认原话**：``quote`` 保存用户说的完整短句，不改写、不摘要——他要能一眼认出这是自己说的。
+2. **不跨短句**：匹配只在逗号/顿号/冒号切开的短句内进行。整句匹配会把
+   「没用过命令行」记到深度学习头上，引文与结论对不上。
+3. **否定优先**：``没写过类`` 不能被 ``写过类`` 这条规则吃成正面证据。
+4. **含糊降级**：``还行 / 一般 / 大概`` 只算弱证据，单独一条不给维度定档。
 
 规则本体在 ``knowledge/guide_signals.json``，这里只做匹配。
 调整判定口径改 JSON，不改代码。
@@ -44,6 +46,11 @@ def split_sentences(text: str) -> list[str]:
     return [s.strip() for s in SENTENCE_SPLIT.split(text or "") if s.strip()]
 
 
+def split_clauses(sentence: str) -> list[str]:
+    """按逗号/顿号/冒号切短句。匹配只在短句内进行，避免跨短句编出证据。"""
+    return [c.strip() for c in CLAUSE_SPLIT.split(sentence or "") if c.strip()]
+
+
 def _negated(sentence: str, start: int) -> bool:
     window = sentence[max(0, start - NEGATION_WINDOW):start]
     return any(tok in window for tok in NEGATION)
@@ -54,7 +61,10 @@ def _strength(sentence: str) -> str:
 
 
 def _clause_at(sentence: str, pos: int) -> str:
-    """取匹配所在的短句，保证引文是用户原话的一部分，不改写。"""
+    """取匹配所在的短句，保证引文是用户原话的一部分，不改写。
+
+    保留给需要「整句上下文 + 短句引文」的调用方；``extract`` 已改为短句内匹配。
+    """
     start = 0
     for m in CLAUSE_SPLIT.finditer(sentence):
         if start <= pos < m.start():
@@ -66,7 +76,14 @@ def _clause_at(sentence: str, pos: int) -> str:
 
 
 def extract(text: str, rules: list[dict] | None = None) -> list[Signal]:
-    """把一段对话拆成证据列表。同一句话同一维度只保留最有力的一条。"""
+    """把一段对话拆成证据列表。
+
+    匹配单位是**短句**而不是整句。整句匹配会让
+    ``没用过.{0,8}torch`` 从「没用过命令行」起头，命中「…也没碰过torch」，
+    于是深度学习维度拿到一条引文是「没用过命令行」的证据——档位也许没错，
+    但「为什么这么判」引用错了句子，可解释性当场失效。限定在短句内匹配，
+    引文就一定说的是这个维度。
+    """
     rules = rules if rules is not None else load_rules()
     # 长模式更具体，先匹配，减少「写过脚本」把「写过类」吃掉这类情况
     ordered = sorted(rules, key=lambda r: -max(len(p) for p in r.get("patterns", [""])))
@@ -75,44 +92,33 @@ def extract(text: str, rules: list[dict] | None = None) -> list[Signal]:
     seen: set[tuple[str, str]] = set()
 
     for sentence in split_sentences(text):
-        # (起, 止, Signal)：同维度里互相重叠的只留一条，不重叠的各自成立
-        hits: list[tuple[int, int, Signal]] = []
-        for rule in ordered:
-            for pattern in rule.get("patterns", []):
-                m = re.search(pattern, sentence)
-                if not m:
-                    continue
-                polarity = rule.get("polarity", "positive")
-                if polarity == "positive" and _negated(sentence, m.start()):
-                    continue
-                hits.append(
-                    (
-                        m.start(),
-                        m.end(),
-                        Signal(
-                            rule_id=rule["id"],
-                            dimension=Dimension(rule["dimension"]),
-                            level=Level(int(rule["level"])),
-                            strength=_strength(sentence),
-                            quote=_clause_at(sentence, m.start()),
-                            why=rule.get("why", ""),
-                            polarity=polarity,
-                        ),
+        for clause in split_clauses(sentence):
+            # 同一短句同一维度只留最有力的一条：先比档位，再比匹配长度
+            best: dict[Dimension, tuple[tuple[int, int], Signal]] = {}
+            for rule in ordered:
+                for pattern in rule.get("patterns", []):
+                    m = re.search(pattern, clause)
+                    if not m:
+                        continue
+                    polarity = rule.get("polarity", "positive")
+                    if polarity == "positive" and _negated(clause, m.start()):
+                        continue
+                    sig = Signal(
+                        rule_id=rule["id"],
+                        dimension=Dimension(rule["dimension"]),
+                        level=Level(int(rule["level"])),
+                        strength=_strength(clause),
+                        quote=clause,
+                        why=rule.get("why", ""),
+                        polarity=polarity,
                     )
-                )
-                break  # 一条规则在同一句话里只算一次
+                    rank = (int(sig.level), m.end() - m.start())
+                    current = best.get(sig.dimension)
+                    if current is None or rank > current[0]:
+                        best[sig.dimension] = (rank, sig)
+                    break  # 一条规则在同一短句里只算一次
 
-        by_dim: dict[Dimension, list[tuple[int, int, Signal]]] = {}
-        for start, end, sig in hits:
-            by_dim.setdefault(sig.dimension, []).append((start, end, sig))
-
-        for items in by_dim.values():
-            # 先让「更高档位」占位，再让「更长的匹配」占位，剩下的视为重复表述
-            occupied: list[tuple[int, int]] = []
-            for start, end, sig in sorted(items, key=lambda h: (-int(h[2].level), -(h[1] - h[0]))):
-                if any(not (end <= a or start >= b) for a, b in occupied):
-                    continue
-                occupied.append((start, end))
+            for _, sig in best.values():
                 key = (sig.rule_id, sig.quote)
                 if key in seen:
                     continue

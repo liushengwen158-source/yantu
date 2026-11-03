@@ -63,6 +63,29 @@ class TestSignals(unittest.TestCase):
         self.assertEqual(state.level, Level.FOUNDATION)
         self.assertEqual(state.confidence, Confidence.LOW)
 
+    def test_quote_never_crosses_into_another_dimension(self) -> None:
+        """「没用过命令行」不能被算成深度学习的证据。
+
+        整句正则会让「没用过.{0,8}torch」从「没用过命令行」起头，
+        引文于是变成命令行那句——档位也许对，但证据说的是别的维度。
+        """
+        text = "我没用过命令行，也没碰过torch。"
+        p = build_profile(text)
+        state = p.dimensions[Dimension.DL]
+
+        self.assertTrue(state.signals)
+        for s in state.signals:
+            self.assertNotIn("命令行", s.quote, "深度学习证据引用到了命令行那句")
+            self.assertIn(s.quote, text)
+        self.assertEqual(state.level, Level.BEGINNER)
+        self.assertEqual(p.dimensions[Dimension.SHELL].level, Level.BEGINNER)
+
+    def test_each_clause_matched_on_its_own(self) -> None:
+        """逗号两侧是两件事：一句给一个维度，不能互相借用关键词。"""
+        p = build_profile("我写过爬虫，没用过命令行。")
+        self.assertEqual(p.dimensions[Dimension.PYTHON].level, Level.FOUNDATION)
+        self.assertEqual(p.dimensions[Dimension.SHELL].level, Level.BEGINNER)
+
     def test_empty_text_is_unknown_not_zero(self) -> None:
         p = build_profile("")
         self.assertEqual(p.overall, Level.UNKNOWN)
