@@ -403,7 +403,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p_explain = guide_sub.add_parser("explain", help="解释一个概念")
     p_explain.add_argument("term", help="概念名，如 反向传播、venv、过拟合")
-    p_explain.add_argument("--dimension", help="限定维度：coding/tools/math/research")
+    p_explain.add_argument(
+        "--dimension",
+        help="限定领域标签：coding/tools/math/research/systems/data/security/theory/ml/dl",
+    )
     p_explain.add_argument("--json", action="store_true")
     p_explain.set_defaults(func=cmd_guide_explain)
 
