@@ -145,6 +145,37 @@ def cmd_paper_report(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# 新手引导
+# ---------------------------------------------------------------------------
+
+def cmd_guide_profile(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from research_agent.guide import build_profile, render_profile
+
+    if args.file:
+        path = Path(args.file)
+        if not path.exists():
+            print(f"找不到文件：{args.file}")
+            return 2
+        text = path.read_text(encoding="utf-8")
+    else:
+        text = args.text or ""
+
+    if not text.strip():
+        print("给一段对话内容，或用 --file 指定文件。例如：")
+        print('  python cli.py guide profile "我写过爬虫，torch 装了但 cuda 一直是 false"')
+        return 2
+
+    profile = build_profile(text)
+    if args.json:
+        print(json.dumps(profile.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        print(render_profile(profile))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _ensure_console_encoding()
     parser = argparse.ArgumentParser(
@@ -189,6 +220,15 @@ def main(argv: list[str] | None = None) -> int:
     p_report.add_argument("repo")
     p_report.add_argument("--out", help="写入指定文件")
     p_report.set_defaults(func=cmd_paper_report)
+
+    p_guide = sub.add_parser("guide", help="新手引导：从对话推断基础水平")
+    guide_sub = p_guide.add_subparsers(dest="guide_command", required=True)
+
+    p_profile = guide_sub.add_parser("profile", help="从对话文本生成能力画像")
+    p_profile.add_argument("text", nargs="?", default="", help="对话内容（或用 --file）")
+    p_profile.add_argument("--file", help="从文本文件读取对话内容")
+    p_profile.add_argument("--json", action="store_true", help="输出 JSON（给 agent 或脚本用）")
+    p_profile.set_defaults(func=cmd_guide_profile)
 
     args = parser.parse_args(argv)
     return args.func(args)
