@@ -1,621 +1,269 @@
 {
-  "version": 1,
-  "weekly_hours": 10,
-  "note": "学习路线的阶段模板。skip_if 表示「已经具备该阶段要产出的能力」才跳过；不确定的维度不跳过。每项任务必须带可验收的产出，否则不进路线。",
+  "version": 2,
+  "note": "通用阶段放这里，方向相关的内容从 domains.json 取。source 字段表示该阶段的内容来源：static 用本文件的 tasks，domain.stage_tasks 用方向基本功，domain.papers 用方向论文表，domain.first_project 用方向首个项目。",
   "stages": [
     {
       "id": "stage0",
-      "name": "工具与工程",
-      "goal": "把「跑得起来」变成肌肉记忆：终端、虚拟环境、Git、远程登录。这一阶段结束前不要碰模型。",
-      "skip_if": {
-        "shell": 2,
-        "python": 2
-      },
-      "weeks": [
-        2,
-        3
-      ],
+      "title": "工程基础",
+      "why": "不管做哪个方向，装环境、跑脚本、管代码这些事每天都要做；这一层不熟，后面每个实验都会卡住。",
+      "hours": 20,
+      "source": "static",
+      "skip_if": { "coding": 2, "tools": 2 },
+      "skip_hint": "编程与工具都已到「有基础」以上，这一阶段可以跳过。",
       "tasks": [
         {
-          "id": "shell.basic",
-          "title": "终端基本功",
-          "detail": "cd/ls/mkdir/cp/mv、管道、重定向、权限、进程与端口。Windows 上用 WSL 或 Git Bash。",
+          "id": "base.command-line",
+          "title": "命令行与终端",
+          "detail": "cd / ls / 权限、重定向、管道、查看进程。目标是不用鼠标也能把文件找出来、把日志筛出来。",
           "acceptance": [
-            "不看教程，在服务器上新建目录、批量重命名文件、用 grep 找到含关键字的文件",
-            "把命令输出重定向到日志并在出问题时用 tail 查看",
-            "能用 ps/kill 处理卡死的进程"
-          ],
-          "hours": 6,
-          "concepts": [
-            "shell-basic",
-            "path"
-          ]
-        },
-        {
-          "id": "python.env",
-          "title": "虚拟环境与包管理",
-          "detail": "venv/conda 二选一，学会装包、锁版本、换国内镜像。",
-          "acceptance": [
-            "从零建一个 venv 并装好 torch",
-            "用 pip freeze 导出 requirements.txt，在另一个环境里按它复现成功",
-            "说清楚「装上了但 import 不到」的三种常见原因"
+            "在终端里完成建目录、找文件、看进程三件事",
+            "用管道从一份日志里筛出含关键字的行并计数",
+            "解释绝对路径、相对路径与文件权限各自是什么"
           ],
           "hours": 4,
-          "concepts": [
-            "venv",
-            "pip-mirror"
-          ]
+          "dims": ["tools"],
+          "concepts": ["shell-basic", "path"]
         },
         {
-          "id": "git.basic",
+          "id": "base.env",
+          "title": "环境与依赖",
+          "detail": "独立环境、包管理、版本冲突。机器是工具，坏了要能自己修。",
+          "acceptance": [
+            "新建一个独立环境并在里面装一个包",
+            "解释为什么不要把实验依赖装在系统环境里",
+            "记录一次环境信息（版本、来源），别人能照着重现"
+          ],
+          "hours": 4,
+          "dims": ["tools"],
+          "concepts": ["venv", "pip-mirror"]
+        },
+        {
+          "id": "base.git",
           "title": "版本控制",
-          "detail": "clone、分支、提交、push、fork、看 diff。先把「改坏了能回退」这件事学会。",
+          "detail": "git 的日常操作：提交、分支、回退、推到远端。",
           "acceptance": [
-            "fork 一个开源仓库，改一处文档，提一次 commit 并推到自己的 fork",
-            "用 git log 和 git diff 找到「哪次提交引入了这个 bug」",
-            "误删文件后能用 git restore 找回"
-          ],
-          "hours": 5,
-          "concepts": [
-            "git-basic"
-          ]
-        },
-        {
-          "id": "remote.ssh",
-          "title": "远程登录与传文件",
-          "detail": "ssh、scp/rsync、免密登录、tmux 保持会话。",
-          "acceptance": [
-            "配置 SSH 免密登录到一台服务器",
-            "用 scp 或 rsync 把本地代码目录传到服务器",
-            "断开终端后训练还在跑（tmux/screen）"
+            "建一个仓库，提交三次，开一个分支再合并",
+            "用 diff 看清自己改了什么",
+            "写一条别人能看懂的 commit message"
           ],
           "hours": 4,
-          "concepts": [
-            "ssh",
-            "tmux"
-          ]
+          "dims": ["tools"],
+          "concepts": ["git-basic"]
+        },
+        {
+          "id": "base.remote",
+          "title": "远程机器与长任务",
+          "detail": "ssh 登录、传文件、后台跑任务。论文实验很少在本地笔记本上跑完。",
+          "acceptance": [
+            "连上一台远程机器并在上面跑一个脚本",
+            "用 tmux 或 nohup 让任务断开后继续跑",
+            "把一个结果文件传回本地"
+          ],
+          "hours": 4,
+          "dims": ["tools"],
+          "concepts": ["ssh", "tmux"]
+        },
+        {
+          "id": "base.debug",
+          "title": "读报错与调试",
+          "detail": "从报错信息定位问题，用断点或打印把范围二分。",
+          "acceptance": [
+            "故意造一个错误，并定位到具体是哪一行",
+            "用断点看一个变量的中间值",
+            "说清一段报错信息里哪个字段最关键"
+          ],
+          "hours": 4,
+          "dims": ["coding"],
+          "concepts": ["debugging"]
         }
       ]
     },
     {
       "id": "stage1",
-      "name": "数学与机器学习底子",
-      "goal": "把「模型在学什么」讲清楚：线代、概率、梯度，加上一门完整的 ML 课和一次手写训练。",
-      "skip_if": {
-        "math": 2,
-        "ml": 2
-      },
-      "weeks": [
-        4,
-        6
-      ],
-      "tasks": [
-        {
-          "id": "math.linear",
-          "title": "线性代数与优化直觉",
-          "detail": "矩阵乘法、特征值、秩；梯度、雅可比、凸性。目标是看懂论文里的公式在做什么。",
-          "acceptance": [
-            "用 numpy 手写矩阵乘法并说清时间复杂度",
-            "解释「梯度方向是函数上升最快的方向」并画出示意图",
-            "看懂 y = Wx + b 与反向传播里的矩阵维度"
-          ],
-          "hours": 8,
-          "concepts": [
-            "matrix",
-            "gradient"
-          ]
-        },
-        {
-          "id": "math.prob",
-          "title": "概率与统计",
-          "detail": "条件概率、期望、方差、常见分布、假设检验的基本概念。",
-          "acceptance": [
-            "能算一个二分类器的准确率、精确率、召回率与 F1",
-            "解释为什么类别不平衡时准确率会骗人",
-            "说清交叉验证在估计什么"
-          ],
-          "hours": 6,
-          "concepts": [
-            "probability",
-            "metric",
-            "cross-validation"
-          ]
-        },
-        {
-          "id": "ml.basics",
-          "title": "一门 ML 课 + sklearn 实践",
-          "detail": "监督/无监督框架、偏差方差、过拟合与正则化。课程任选，重点是跑完并写笔记。",
-          "acceptance": [
-            "在真实小数据集上完成训练/验证/测试划分，画出混淆矩阵",
-            "故意让模型过拟合，再用正则化或减特征把差距拉回来，并解释原因",
-            "写一份笔记，能讲清训练集/验证集/测试集分别用来干什么"
-          ],
-          "hours": 20,
-          "concepts": [
-            "overfitting",
-            "regularization",
-            "train-val-test",
-            "cross-validation"
-          ]
-        },
-        {
-          "id": "ml.gradient",
-          "title": "手推并手写反向传播",
-          "detail": "只用一个两层网络，不调库，用 numpy 写前向与反向。",
-          "acceptance": [
-            "用 numpy 手写两层全连接网络的训练，loss 能稳定下降",
-            "与同结构的 torch 实现对比，10 步内 loss 差值小于 1e-3",
-            "手推出 ∂L/∂W 的每一步并写进笔记"
-          ],
-          "hours": 10,
-          "concepts": [
-            "backprop",
-            "gradient-descent",
-            "loss"
-          ]
-        }
-      ]
+      "title": "方向基本功",
+      "why": "这一阶段完全由方向决定：系统要补 C 与并发，理论要补证明，数据要补查询，AI 要补数学与框架。内容不是通用的，所以不做成放之四海皆准的任务。",
+      "hours": 40,
+      "source": "domain.stage_tasks",
+      "skip_if": "domain.required",
+      "skip_hint": "该方向要求的基本功都已在「有基础」以上，这一阶段可以跳过。",
+      "tasks": []
     },
     {
       "id": "stage2",
-      "name": "复现一篇小论文",
-      "goal": "走完「跑通 → 对上数字 → 改一处」的完整闭环。这一阶段比读十篇论文有用。",
-      "skip_if": {
-        "dl": 3
-      },
-      "weeks": [
-        3,
-        5
-      ],
+      "title": "读论文的方法",
+      "why": "读论文是能单独练的技能。先有方法，再谈读多少篇；没有方法时读十篇不如读懂一篇。",
+      "hours": 16,
+      "source": "static",
+      "skip_if": { "research": 2 },
+      "skip_hint": "科研方法已在「有基础」以上，这一阶段可以跳过。",
       "tasks": [
         {
-          "id": "pick.paper",
-          "title": "挑一篇能复现的论文",
-          "detail": "三条标准：代码公开可跑、数据集可下载且不大、模型单卡能训完。",
+          "id": "read.three-pass",
+          "title": "三遍读法",
+          "detail": "第一遍看摘要、图表、结论（5 分钟）；第二遍看方法与实验设计（30 分钟）；第三遍才是推导与细节。",
           "acceptance": [
-            "按三条标准选出 1 篇，写下为什么选它、放弃了哪些候选",
-            "确认数据集能下载、显存需求在自己机器范围内"
-          ],
-          "hours": 3,
-          "concepts": [
-            "reproducibility"
-          ]
-        },
-        {
-          "id": "env.repro",
-          "title": "配环境并跑通 demo",
-          "detail": "README 的每一行命令都当回事；报错先看版本，再看驱动。可用 env-setup 技能体检。",
-          "acceptance": [
-            "按 README 跑通 demo，把每条命令和报错记进一份 log",
-            "能说清卡住的每一步是怎么解决的（版本冲突？CUDA？数据路径？）"
-          ],
-          "hours": 8,
-          "concepts": [
-            "venv",
-            "cuda"
-          ]
-        },
-        {
-          "id": "baseline",
-          "title": "对上论文的基线数字",
-          "detail": "允许有差距，但要能解释差距从哪来。",
-          "acceptance": [
-            "复现出与论文差距 ≤2% 的指标（或写清为什么达不到）",
-            "记录硬件、随机种子、batch size、训练轮数"
-          ],
-          "hours": 10,
-          "concepts": [
-            "baseline",
-            "random-seed",
-            "metric"
-          ]
-        },
-        {
-          "id": "tweak",
-          "title": "改一处并解释结果",
-          "detail": "改学习率、batch size 或一个模块，观察指标怎么动。",
-          "acceptance": [
-            "只改一个变量，跑出对比结果",
-            "写一段解释：为什么结果会这样，有没有其他解释"
+            "对一篇论文按三遍各写一次笔记",
+            "用自己的话说清它解决什么问题、用什么办法、证据是什么",
+            "标出你还没看懂的那一处"
           ],
           "hours": 6,
-          "concepts": [
-            "learning-rate",
-            "batch-size",
-            "ablation"
-          ]
+          "dims": ["research"],
+          "concepts": ["three-pass", "survey"]
         },
         {
-          "id": "exp.log",
-          "title": "建立实验记录习惯",
-          "detail": "命令、超参、指标、结论四列，一次实验一行。",
+          "id": "read.map",
+          "title": "建立领域地图",
+          "detail": "先读综述与经典，把方向的脉络画出来，再决定精读哪几篇。",
           "acceptance": [
-            "用表格记录至少 3 次实验，别人按表能重跑",
-            "能回答「上一次为什么没跑好」而不靠回忆"
+            "列出 5 篇必读，并说明先读哪一篇、为什么",
+            "画一张时间线或分类图",
+            "说清当前最好结果是在什么数据、什么设定下取得的"
           ],
-          "hours": 3,
-          "concepts": [
-            "experiment-log"
-          ]
+          "hours": 6,
+          "dims": ["research"],
+          "concepts": ["survey", "sota"]
+        },
+        {
+          "id": "read.note",
+          "title": "做可检索的笔记",
+          "detail": "固定模板：问题 / 方法 / 证据 / 局限 / 我的判断。",
+          "acceptance": [
+            "按模板写三篇，字段不空",
+            "每篇标注可复现性（代码是否公开、算力要求）",
+            "最后一栏写你自己的判断，而不是抄摘要"
+          ],
+          "hours": 4,
+          "dims": ["research"],
+          "concepts": ["experiment-log", "limitation"]
         }
       ]
     },
     {
       "id": "stage3",
-      "name": "读论文的方法",
-      "goal": "从「从头读到尾再放弃」转成「先判断值不值得读，再决定读多深」。",
-      "skip_if": {
-        "research": 2
-      },
-      "weeks": [
-        3,
-        4
-      ],
-      "tasks": [
-        {
-          "id": "read.survey",
-          "title": "读一篇综述，画脉络图",
-          "detail": "综述用来建地图：有哪些问题、几类方法、各自代表工作。",
-          "acceptance": [
-            "画出「问题 → 方法族 → 代表工作」的脉络图",
-            "能说出这个方向当前最大的未解问题是什么"
-          ],
-          "hours": 6,
-          "concepts": [
-            "survey",
-            "three-pass"
-          ]
-        },
-        {
-          "id": "read.three-pass",
-          "title": "三遍读法练一篇",
-          "detail": "5 分钟看标题摘要图表；30 分钟看方法与实验；2 小时抠细节与公式。",
-          "acceptance": [
-            "同一篇论文写三份笔记，第三份能讲清方法、实验设置与局限",
-            "能判断这篇论文值不值得读第四遍"
-          ],
-          "hours": 5,
-          "concepts": [
-            "three-pass"
-          ]
-        },
-        {
-          "id": "read.classic",
-          "title": "精读 3 篇经典",
-          "detail": "方向明确后选 3 篇绕不开的工作，读代码比读公式更有用。",
-          "acceptance": [
-            "每篇写三句话：解决什么问题、怎么做的、局限在哪",
-            "至少一篇能对着代码指出关键实现在哪个文件"
-          ],
-          "hours": 6,
-          "concepts": [
-            "three-pass"
-          ]
-        },
-        {
-          "id": "read.recent",
-          "title": "扫近三年 5 篇新工作",
-          "detail": "只看摘要、图表和结论，目的是知道现在大家在做什么。",
-          "acceptance": [
-            "整理成表：方法 / 数据集 / 指标 / 代码是否公开",
-            "挑出 1 篇最想复现的，说明理由"
-          ],
-          "hours": 8,
-          "concepts": [
-            "sota"
-          ]
-        }
-      ]
+      "title": "重现一篇论文",
+      "why": "复现是检验「读懂了」的唯一办法。不同方向的「复现」不一样：AI 是对上指标，系统是复跑测量，理论是重走证明。",
+      "hours": 30,
+      "source": "domain.papers",
+      "skip_if": { "research": 3 },
+      "skip_hint": "已经复现过别人的工作，这一阶段可以跳过。",
+      "tasks": []
     },
     {
       "id": "stage4",
-      "name": "定方向：选一个能做出东西的细分问题",
-      "goal": "方向不是选领域，是选一个具体到能动手的问题。这一阶段按选定方向展开。",
-      "skip_if": {},
-      "track": true,
-      "weeks": [
-        4,
-        8
-      ],
+      "title": "做一个自己的小工作",
+      "why": "从「跟着做」到「自己做」需要一次完整闭环：提问题、做出来、拿到结果、说清局限。题目按方向给，但闭环是一样的。",
+      "hours": 25,
+      "source": "domain.first_project",
+      "skip_if": null,
+      "skip_hint": "",
       "tasks": []
     },
     {
       "id": "stage5",
-      "name": "改进与实验管理",
-      "goal": "从「跑通别人的」到「证明自己改的更好」：消融、多种子、可复现。",
-      "skip_if": {
-        "research": 3
-      },
-      "weeks": [
-        4,
-        6
-      ],
+      "title": "记录与表达",
+      "why": "结果没记录就等于没做；写不清就等于没做出来。这部分和方法无关，哪个方向都用得上。",
+      "hours": 18,
+      "source": "static",
+      "skip_if": { "research": 4 },
+      "skip_hint": "科研方法已到「可独立」，这一阶段可以跳过。",
       "tasks": [
         {
-          "id": "ablation",
-          "title": "做一组消融实验",
-          "detail": "把你的改动拆成几个部分，逐一去掉看效果。",
+          "id": "write.log",
+          "title": "实验记录",
+          "detail": "每次实验记五件事：日期、环境、参数、结果、结论。失败的那次更要记。",
           "acceptance": [
-            "3 组消融，每组只改一个因素",
-            "结论能对上事前写下的假设，对不上也要如实记录"
-          ],
-          "hours": 8,
-          "concepts": [
-            "ablation",
-            "baseline"
-          ]
-        },
-        {
-          "id": "seed",
-          "title": "多种子与方差",
-          "detail": "深度学习的结果常常是噪声；同一实验跑 3 个种子。",
-          "acceptance": [
-            "同一实验跑 3 个种子，报告均值±方差",
-            "判断你的提升是否超过波动范围"
+            "连续记录三次实验，字段完整",
+            "别人能按记录重跑出同样结果",
+            "写下一次失败实验，并说明为什么失败"
           ],
           "hours": 4,
-          "concepts": [
-            "random-seed",
-            "variance"
-          ]
+          "dims": ["research"],
+          "concepts": ["experiment-log", "reproducibility"]
         },
-        {
-          "id": "tracking",
-          "title": "把实验管起来",
-          "detail": "tensorboard/wandb 或自建表格，目标是三个月后还能看懂。",
-          "acceptance": [
-            "至少 10 次实验有记录，能按超参筛选对比",
-            "能从记录里复现任意一次结果"
-          ],
-          "hours": 4,
-          "concepts": [
-            "experiment-log"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "stage6",
-      "name": "写作与开源",
-      "goal": "把做过的事变成别人能用的东西：报告、仓库、一次公开表达。",
-      "skip_if": {
-        "research": 4
-      },
-      "weeks": [
-        3,
-        5
-      ],
-      "tasks": [
         {
           "id": "write.report",
-          "title": "写一份复现或改进报告",
-          "detail": "方法、实验、差异分析、局限，四段式。",
+          "title": "写一份报告",
+          "detail": "三段式：问题与动机、方法与结果、局限与下一步。",
           "acceptance": [
-            "5 页以内，包含差距分析与失败尝试",
-            "陌生人读完能判断结果可信不可信"
-          ],
-          "hours": 10,
-          "concepts": [
-            "report",
-            "limitation"
-          ]
-        },
-        {
-          "id": "write.repo",
-          "title": "整理仓库",
-          "detail": "README、依赖、一键脚本、结果截图。",
-          "acceptance": [
-            "陌生人 10 分钟内按 README 跑通",
-            "issues 模板与运行环境写清楚"
+            "三页以内写清一次实验",
+            "每个数字都能指回日志或表格",
+            "单独写一节「局限」，不少于三条"
           ],
           "hours": 6,
-          "concepts": [
-            "readme",
-            "docker"
-          ]
+          "dims": ["research"],
+          "concepts": ["report", "limitation"]
         },
         {
-          "id": "write.share",
-          "title": "讲一次",
-          "detail": "组会、博客或开源 issue，重点是拿到反馈。",
+          "id": "write.talk",
+          "title": "讲给别人听",
+          "detail": "五分钟讲清一个问题：为什么重要、别人怎么做、你做了什么。",
           "acceptance": [
-            "完成一次公开分享并记录至少 3 条反馈",
-            "根据反馈改一处代码或实验"
+            "讲一次并录下来回看",
+            "让非本方向的人听懂问题是什么",
+            "准备两个最可能被问到的问题及答案"
           ],
           "hours": 4,
-          "concepts": [
-            "presentation"
-          ]
+          "dims": ["research"],
+          "concepts": ["presentation"]
+        },
+        {
+          "id": "write.readme",
+          "title": "把代码整理成别人能跑的样子",
+          "detail": "README、依赖清单、一键运行脚本、示例输入输出。",
+          "acceptance": [
+            "别人照 README 能跑通",
+            "有示例输入与预期输出",
+            "声明许可证与已知问题"
+          ],
+          "hours": 4,
+          "dims": ["tools", "research"],
+          "concepts": ["readme", "docker"]
         }
       ]
     }
   ],
-  "tracks": [
-    {
-      "id": "cv",
-      "name": "计算机视觉",
-      "why": "数据公开、算力要求相对可控、结果可视化直观，适合作为第一个方向。",
-      "skills": [
-        "图像预处理",
-        "检测/分割评价指标",
-        "数据增强"
-      ],
-      "first_project": "在一个小数据集上训练检测或分割模型，做出可视化对比图。",
-      "papers": [
-        {
-          "title": "ImageNet Classification with Deep Convolutional Neural Networks",
-          "why": "CNN 在视觉上真正起飞的起点，读它能理解「深度」为什么重要。",
-          "level": "入门",
-          "note": "重点看数据增强与 ReLU 的作用，不必复现完整 ImageNet 训练。"
-        },
-        {
-          "title": "Deep Residual Learning for Image Recognition",
-          "why": "残差连接是所有现代网络的默认组件，公式简单但影响极大。",
-          "level": "必读",
-          "note": "代码量小，适合作为第一次完整复现的对象。"
-        },
-        {
-          "title": "You Only Look Once: Unified, Real-Time Object Detection",
-          "why": "把检测做成回归问题，是理解检测范式的捷径。",
-          "level": "进阶",
-          "note": "训练成本较高，建议只跑推理并分析结果。"
-        }
-      ]
-    },
-    {
-      "id": "nlp",
-      "name": "自然语言处理与大模型",
-      "why": "当前最热，但入门容易变成「只会调 API」，要刻意补底层。",
-      "skills": [
-        "tokenizer",
-        "注意力机制",
-        "微调与评测"
-      ],
-      "first_project": "用一个小型预训练模型做领域微调，并给出前后对比与错误分析。",
-      "papers": [
-        {
-          "title": "Attention Is All You Need",
-          "why": "Transformer 的源头，读懂它就懂了现在大部分模型的骨架。",
-          "level": "必读",
-          "note": "建议手写一遍 self-attention 的矩阵运算。"
-        },
-        {
-          "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
-          "why": "预训练+微调范式的代表，理解「预训练到底学到了什么」。",
-          "level": "必读",
-          "note": "用 HuggingFace 复现微调，成本可控。"
-        },
-        {
-          "title": "Language Models are Few-Shot Learners",
-          "why": "理解大模型的能力边界与评测方式，知道「涌现」争议在哪。",
-          "level": "进阶",
-          "note": "只读，不要求复现。"
-        }
-      ]
-    },
-    {
-      "id": "system",
-      "name": "系统与分布式",
-      "why": "偏工程，实验多为性能对比，适合喜欢折腾机器的人。",
-      "skills": [
-        "并发与调度",
-        "性能剖析",
-        "容器与集群"
-      ],
-      "first_project": "复现一个调度策略，在模拟负载下对比吞吐与尾延迟。",
-      "papers": [
-        {
-          "title": "MapReduce: Simplified Data Processing on Large Clusters",
-          "why": "分布式计算的思维起点，读它能理解「把计算搬到数据旁边」。",
-          "level": "必读",
-          "note": "可以自己实现一个单机版 MapReduce。"
-        },
-        {
-          "title": "Spark: Cluster Computing with Working Sets",
-          "why": "内存计算与 DAG 调度，是理解现代数据栈的基础。",
-          "level": "必读",
-          "note": "重点看 RDD 的血缘与容错。"
-        },
-        {
-          "title": "Ray: A Distributed Framework for Emerging AI Applications",
-          "why": "面向 AI 工作负载的分布式框架，和当下训练/推理集群直接相关。",
-          "level": "进阶",
-          "note": "可以只跑官方示例，观察任务调度。"
-        }
-      ]
-    },
-    {
-      "id": "data",
-      "name": "数据挖掘与推荐",
-      "why": "工业界需求大，数据与评价指标明确，容易做出可量化的结果。",
-      "skills": [
-        "特征工程",
-        "排序指标",
-        "离线评估与线上 A/B 的差异"
-      ],
-      "first_project": "在公开推荐数据集上复现一个排序模型，做特征消融。",
-      "papers": [
-        {
-          "title": "XGBoost: A Scalable Tree Boosting System",
-          "why": "表格数据上最强的基线之一，读它能理解工程优化如何带来效果。",
-          "level": "必读",
-          "note": "复现成本低，适合当第一个 baseline。"
-        },
-        {
-          "title": "Wide & Deep Learning for Recommender Systems",
-          "why": "记忆与泛化的分工，是推荐系统的经典结构。",
-          "level": "必读",
-          "note": "用公开数据集复现，重点看特征交叉。"
-        },
-        {
-          "title": "LightGBM: A Highly Efficient Gradient Boosting Decision Tree",
-          "why": "理解直方图与 leaf-wise 生长，工程细节影响很大。",
-          "level": "进阶",
-          "note": "只读方法部分即可，不必复现实现。"
-        }
-      ]
-    },
-    {
-      "id": "theory",
-      "name": "机器学习理论",
-      "why": "偏数学，产出是证明与反例，适合喜欢推导、不急于跑实验的人。",
-      "skills": [
-        "概率不等式",
-        "收敛性分析",
-        "泛化界"
-      ],
-      "first_project": "把一个已知结论在小规模实验中验证或找到反例。",
-      "papers": [
-        {
-          "title": "Adam: A Method for Stochastic Optimization",
-          "why": "最常用的优化器，读它能理解自适应学习率在做什么。",
-          "level": "必读",
-          "note": "重点是更新式的推导与偏差修正。"
-        },
-        {
-          "title": "Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift",
-          "why": "一个被广泛使用但解释仍有争议的技巧，适合练习批判性阅读。",
-          "level": "必读",
-          "note": "对比后续关于它为何有效的反驳文章。"
-        },
-        {
-          "title": "Understanding the difficulty of training deep feedforward neural networks",
-          "why": "初始化与梯度消失的经典分析，是理论入门的样板。",
-          "level": "进阶",
-          "note": "跟着推导一遍 Xavier 初始化的方差分析。"
-        }
-      ]
-    },
-    {
-      "id": "ai4science",
-      "name": "AI for Science",
-      "why": "交叉方向，问题真实、数据专业，需要愿意补领域知识。",
-      "skills": [
-        "科学数据格式",
-        "等变网络",
-        "领域评价指标"
-      ],
-      "first_project": "复现一个分子或材料性质预测模型，并用领域指标评估。",
-      "papers": [
-        {
-          "title": "Highly accurate protein structure prediction with AlphaFold",
-          "why": "AI4Science 的标志性工作，理解「结构预测」为什么难。",
-          "level": "必读",
-          "note": "代码与权重公开，但算力要求高，建议先跑小序列。"
-        },
-        {
-          "title": "Neural Message Passing for Quantum Chemistry",
-          "why": "图神经网络在分子上的经典应用，模型不大、容易上手。",
-          "level": "必读",
-          "note": "适合作为第一个复现对象。"
-        },
-        {
-          "title": "Accurate structure prediction of biomolecular interactions with AlphaFold 3",
-          "why": "看领域如何从单分子走向复合物，理解评测方式的变化。",
-          "level": "进阶",
-          "note": "只读，重点是评测指标与失败案例。"
-        }
-      ]
-    }
-  ]
+  "unknown_domain": {
+    "why": "方向还没定的时候，最好的做法不是先补技术，而是用最小的成本试几个方向，再决定往哪走。",
+    "tasks": [
+      {
+        "id": "explore.papers",
+        "title": "每个候选方向读一篇入门论文",
+        "detail": "挑三个你可能感兴趣的方向，各读一篇最经典的入门论文，只读摘要、图表与结论。",
+        "acceptance": [
+          "三个方向各写 200 字：它想解决什么问题、你看懂了什么、哪里看不懂",
+          "说出哪个方向让你想再看第二篇",
+          "不要求读懂全部，要求诚实记录卡在哪"
+        ],
+        "hours": 6,
+        "dims": ["research"],
+        "concepts": ["three-pass", "survey"]
+      },
+      {
+        "id": "explore.demo",
+        "title": "跑通一个官方示例",
+        "detail": "在你最感兴趣的方向里，找一个官方仓库或教程，把示例跑起来。",
+        "acceptance": [
+          "示例能跑出结果，并截图或记录输出",
+          "记下装环境时卡住的每一处",
+          "说清这个示例的输入输出各是什么"
+        ],
+        "hours": 8,
+        "dims": ["tools", "coding"],
+        "concepts": ["venv", "git-basic"]
+      },
+      {
+        "id": "explore.confirm",
+        "title": "把方向写成一句话",
+        "detail": "用一句话说清你想解决的问题，再决定方向。",
+        "acceptance": [
+          "写出一句「我想解决……的问题」",
+          "列出这个方向现在的三个难点",
+          "如果写不出，就再读两篇论文再来"
+        ],
+        "hours": 4,
+        "dims": ["research"],
+        "concepts": ["limitation"]
+      }
+    ]
+  }
 }

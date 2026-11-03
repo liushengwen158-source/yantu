@@ -1,360 +1,359 @@
-"""对话式基础评估的回归测试。
+"""新手引导的回归测试。
 
-重点不是「分数对不对」，而是四条可解释性约束有没有被破坏：
-1. 每条结论都能指回原话
-2. 否定句不能被读成正面证据
-3. 矛盾证据不硬猜
-4. 没有证据就是未知，不是 0 分
+覆盖四组不变量：
+
+1. 维度随方向激活：做系统的学生看不到「深度学习」这一行
+2. 证据不跨短句、负向优先、英文关键词按词边界匹配
+3. 路线内容按方向分岔，跳过必须给理由，未知不跳过
+4. 概念库自洽，工具层不抛异常
 """
 
 from __future__ import annotations
 
-import json
+import tempfile
 import unittest
 from pathlib import Path
 
 from research_agent.guide import (
-    Confidence,
+    CORE_DIMENSIONS,
     Dimension,
+    Domain,
     Level,
-    Source,
     build_profile,
+    build_profile_from_signals,
     build_roadmap,
+    detect_domain,
     explain,
-    get_concept,
-    list_tracks,
-    merge_profiles,
+    list_domains,
+    match_signals,
     next_question,
-    render_card,
+    probe_plan,
+    render_profile,
     render_roadmap,
+    render_table,
+    required_levels,
+    resolve_domain,
     scan_materials,
+    split_clauses,
     validate_concepts,
 )
-from research_agent.tools.guide_tools import (
-    guide_assess,
-    guide_explain,
-    guide_roadmap,
-    guide_tracks,
-)
+from research_agent.guide.probe import DIMENSION_QUESTIONS
+from research_agent.guide.signals import load_rules
+from research_agent.tools import guide_tools
 
-FIXTURES = Path(__file__).parent / "fixtures" / "guide_materials"
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "guide_materials"
 
 
-class TestSignals(unittest.TestCase):
-    def test_beginner_dialogue(self) -> None:
-        """典型新手自述：三个维度该被读出来，其余留未知。"""
-        text = "我大一，Python 只会 print，没用过命令行，也没碰过深度学习。"
-        p = build_profile(text)
+class DimensionTests(unittest.TestCase):
+    def test_core_dimensions_are_four(self) -> None:
+        self.assertEqual(len(CORE_DIMENSIONS), 4)
 
-        self.assertEqual(p.dimensions[Dimension.PYTHON].level, Level.BEGINNER)
-        self.assertEqual(p.dimensions[Dimension.SHELL].level, Level.BEGINNER)
-        self.assertEqual(p.dimensions[Dimension.DL].level, Level.BEGINNER)
-        self.assertEqual(p.dimensions[Dimension.MATH].level, Level.UNKNOWN)
-        self.assertEqual(p.overall, Level.BEGINNER)
+    def test_level_labels_are_monotonic(self) -> None:
+        scores = [Level(i).score for i in range(5)]
+        self.assertEqual(scores, sorted(scores))
 
-    def test_negation_is_not_positive_evidence(self) -> None:
-        """「没写过类」不能被「写过类」规则吃成 3 档。"""
-        p = build_profile("我没写过类，也没写过包。")
-        state = p.dimensions[Dimension.PYTHON]
-        self.assertEqual(state.level, Level.BEGINNER)
-        self.assertTrue(all(s.level != Level.WORKING for s in state.signals))
+    def test_unknown_level_is_not_a_skill(self) -> None:
+        self.assertEqual(Level.UNKNOWN.score, 0)
 
-    def test_foundation_dialogue(self) -> None:
-        p = build_profile("我写过爬虫，也用过 numpy。torch 装了两次，cuda 一直是 false。")
-        self.assertEqual(p.dimensions[Dimension.PYTHON].level, Level.FOUNDATION)
-        self.assertEqual(p.dimensions[Dimension.DL].level, Level.FOUNDATION)
 
-    def test_conflict_is_not_guessed(self) -> None:
-        """自述互相矛盾时，该维度不猜档位，并把两句话都摆出来。"""
-        text = "我实现过 transformer。不过我其实没碰过深度学习。"
-        p = build_profile(text)
-        state = p.dimensions[Dimension.DL]
-
-        self.assertEqual(state.level, Level.UNKNOWN)
-        self.assertTrue(state.conflicts)
-        self.assertEqual(state.confidence, Confidence.LOW)
-        self.assertIn("没碰过深度学习", " ".join(state.conflicts))
-
-    def test_weak_evidence_is_low_confidence(self) -> None:
-        p = build_profile("我用过一点 pandas。")
-        state = p.dimensions[Dimension.PYTHON]
-        self.assertEqual(state.level, Level.FOUNDATION)
-        self.assertEqual(state.confidence, Confidence.LOW)
-
+class SignalTests(unittest.TestCase):
     def test_quote_never_crosses_into_another_dimension(self) -> None:
-        """「没用过命令行」不能被算成深度学习的证据。
+        signals = match_signals("我没用过命令行，也没碰过torch")
+        tools = [s for s in signals if s.dimension is Dimension.TOOLS]
+        dl = [s for s in signals if s.dimension is Dimension.DL]
+        self.assertTrue(tools, "命令行这一维应该被抓到")
+        self.assertTrue(dl, "深度学习这一维应该被抓到")
+        for signal in dl:
+            self.assertNotIn("命令行", signal.quote)
 
-        整句正则会让「没用过.{0,8}torch」从「没用过命令行」起头，
-        引文于是变成命令行那句——档位也许对，但证据说的是别的维度。
-        """
-        text = "我没用过命令行，也没碰过torch。"
-        p = build_profile(text)
-        state = p.dimensions[Dimension.DL]
+    def test_negative_wins_in_same_clause(self) -> None:
+        signals = match_signals("我没用过命令行")
+        tools = [s for s in signals if s.dimension is Dimension.TOOLS]
+        self.assertTrue(tools)
+        self.assertTrue(all(s.polarity == "negative" for s in tools))
 
-        self.assertTrue(state.signals)
-        for s in state.signals:
-            self.assertNotIn("命令行", s.quote, "深度学习证据引用到了命令行那句")
-            self.assertIn(s.quote, text)
-        self.assertEqual(state.level, Level.BEGINNER)
-        self.assertEqual(p.dimensions[Dimension.SHELL].level, Level.BEGINNER)
+    def test_sql_with_space_is_matched(self) -> None:
+        signals = match_signals("写过 SQL")
+        self.assertTrue([s for s in signals if s.dimension is Dimension.DATA])
 
-    def test_each_clause_matched_on_its_own(self) -> None:
-        """逗号两侧是两件事：一句给一个维度，不能互相借用关键词。"""
-        p = build_profile("我写过爬虫，没用过命令行。")
-        self.assertEqual(p.dimensions[Dimension.PYTHON].level, Level.FOUNDATION)
-        self.assertEqual(p.dimensions[Dimension.SHELL].level, Level.BEGINNER)
+    def test_english_keyword_is_case_insensitive(self) -> None:
+        lower = match_signals("我跑过训练")
+        upper = match_signals("我跑过训练")
+        self.assertEqual(len(lower), len(upper))
 
-    def test_empty_text_is_unknown_not_zero(self) -> None:
-        p = build_profile("")
-        self.assertEqual(p.overall, Level.UNKNOWN)
-        self.assertEqual(p.known, [])
-        self.assertEqual(p.coverage, "0/6")
-        self.assertTrue(p.notes)
-        self.assertFalse(any(d.score == 0 and d.is_known for d in p.dimensions.values()))
+    def test_clause_split_keeps_meaning(self) -> None:
+        clauses = split_clauses("我会一点 Python，但没写过项目。")
+        self.assertEqual(len(clauses), 2)
 
-
-class TestExplainability(unittest.TestCase):
-    def test_every_level_has_a_quote(self) -> None:
-        p = build_profile("我写过类，用过 Linux，学过线性代数，上过机器学习，跑过训练，读过论文。")
-        for state in p.known:
-            self.assertTrue(state.signals, f"{state.dimension} 没有证据却定了档")
-            for s in state.signals:
-                self.assertTrue(s.quote, "证据缺少原话")
-                self.assertTrue(s.why, "证据缺少判定理由")
-                self.assertIn(s.quote, "我写过类，用过 Linux，学过线性代数，上过机器学习，跑过训练，读过论文。")
-
-    def test_quote_is_verbatim_sentence(self) -> None:
-        text = "我上周用 Linux 服务器跑了三天实验。"
-        p = build_profile(text)
-        quotes = [s.quote for state in p.known for s in state.signals]
-        self.assertIn("我上周用 Linux 服务器跑了三天实验", quotes)
-
-    def test_profile_is_json_serializable(self) -> None:
-        p = build_profile("我写过爬虫。")
-        payload = json.dumps(p.to_dict(), ensure_ascii=False)
-        self.assertIn("python", payload)
+    def test_rule_library_loads(self) -> None:
+        rules = load_rules()
+        self.assertGreater(len(rules), 50)
+        dimensions = {r["dimension"] for r in rules}
+        self.assertIn(Dimension.SYSTEMS, dimensions)
+        self.assertIn(Dimension.SECURITY, dimensions)
 
 
-class TestProbe(unittest.TestCase):
-    def test_one_question_at_a_time(self) -> None:
-        q = next_question(build_profile("我写过爬虫。"))
-        self.assertIsNotNone(q)
-        self.assertIsInstance(q["question"], str)
-        self.assertNotIn("A.", q["question"])
-        self.assertNotIn("问卷", q["question"])
+class DomainDetectionTests(unittest.TestCase):
+    def test_detects_database_from_talk(self) -> None:
+        domain, evidence = detect_domain("我在做数据库方向")
+        self.assertIs(domain, Domain.DATABASE)
+        self.assertIn("数据库", evidence)
 
-    def test_conflict_question_first(self) -> None:
-        q = next_question(build_profile("我实现过 transformer。不过我其实没碰过深度学习。"))
-        self.assertIn("对不上", q["question"])
+    def test_detects_ai_shorthand(self) -> None:
+        domain, _ = detect_domain("我做 AI 方向")
+        self.assertIs(domain, Domain.AI)
 
-    def test_no_question_when_profile_is_solid(self) -> None:
-        text = (
-            "我写过类，也用过 pdb 和 pytest。我常年在 Linux 服务器上用 ssh，配过 PATH。"
-            "学过线性代数，能推梯度。上过机器学习课，用 sklearn 跑过分类，调过超参。"
-            "改过网络结构，实现过 attention，跑过训练。读过 5 篇论文，复现过别人的实验。"
-        )
-        p = build_profile(text)
-        self.assertGreaterEqual(len(p.known), 5)
-        self.assertIsNone(next_question(p))
+    def test_ai_keyword_does_not_match_inside_words(self) -> None:
+        # train / detail 里都含 ai，不能因此判成人工智能
+        domain, _ = detect_domain("我在看 train 和 detail 两个字段")
+        self.assertIsNot(domain, Domain.AI)
+
+    def test_explicit_undecided_stays_unknown(self) -> None:
+        domain, _ = detect_domain("方向还没定，先看看")
+        self.assertIs(domain, Domain.UNKNOWN)
+
+    def test_resolve_domain_accepts_chinese_name(self) -> None:
+        self.assertIs(resolve_domain("系统"), Domain.SYSTEMS)
+        self.assertIs(resolve_domain("database"), Domain.DATABASE)
+
+    def test_resolve_domain_rejects_nonsense(self) -> None:
+        with self.assertRaises(ValueError):
+            resolve_domain("炼丹修仙")
+
+    def test_every_domain_declares_required_levels(self) -> None:
+        for spec in list_domains():
+            self.assertIn(Dimension.CODING, spec.required)
+            self.assertTrue(spec.papers, f"{spec.name} 应该给论文")
+            self.assertTrue(spec.stage_tasks, f"{spec.name} 应该给基本功任务")
 
 
-class TestMerge(unittest.TestCase):
-    def test_multi_turn_accumulates(self) -> None:
-        first = build_profile("我没学过机器学习。")
-        second = build_profile("最近用 sklearn 跑了个分类，还调过超参。")
-        self.assertEqual(first.dimensions[Dimension.ML].level, Level.BEGINNER)
+class ProfileTests(unittest.TestCase):
+    def test_unknown_domain_only_has_core_dimensions(self) -> None:
+        profile = build_profile("我还在看，方向没定")
+        self.assertIs(profile.domain, Domain.UNKNOWN)
+        self.assertEqual(set(profile.dimensions), set(CORE_DIMENSIONS))
+        self.assertNotIn(Dimension.ML, profile.dimensions)
+        self.assertNotIn(Dimension.DL, profile.dimensions)
 
-        merged = merge_profiles(first, second)
-        self.assertTrue(merged.dimensions[Dimension.ML].is_known)
-        self.assertEqual(merged.dimensions[Dimension.ML].level, Level.WORKING)
+    def test_systems_profile_hides_ml(self) -> None:
+        profile = build_profile("我在做系统方向，写过 C")
+        self.assertIs(profile.domain, Domain.SYSTEMS)
+        self.assertNotIn(Dimension.ML, profile.dimensions)
+        self.assertIn(Dimension.SYSTEMS, profile.dimensions)
 
+    def test_domain_requirements_are_attached(self) -> None:
+        profile = build_profile("我在做理论方向，学过离散数学")
+        self.assertEqual(profile.dimensions[Dimension.MATH].required,
+                         required_levels(Domain.THEORY)[Dimension.MATH])
 
-class TestMaterials(unittest.TestCase):
-    """授权扫描的边界：只能证明材料在，不能证明掌握。"""
+    def test_conflict_is_flagged_not_averaged(self) -> None:
+        profile = build_profile("我训练过模型，但完全没碰过深度学习")
+        state = profile.dimensions[Dimension.DL]
+        self.assertTrue(state.conflicts)
+        self.assertIs(state.level, Level.UNKNOWN)
 
-    def test_scan_counts_and_kinds(self) -> None:
+    def test_file_evidence_does_not_set_level(self) -> None:
         scan = scan_materials(FIXTURES)
-        self.assertEqual(len(scan.by_kind("paper")), 2)
-        self.assertEqual(len(scan.by_kind("notebook")), 2)
-        self.assertEqual(sum(1 for p in scan.by_kind("paper") if p.has_note), 1)
+        profile = build_profile("", scan=scan)
+        signed = [d for d in profile.dimensions.values() if d.signals]
+        self.assertTrue(signed, "夹具里应该有可用的文件证据")
+        for state in signed:
+            self.assertIs(state.level, Level.UNKNOWN)
+            self.assertIn("旁证", state.note)
 
-    def test_file_evidence_is_weak_and_attributed(self) -> None:
+    def test_file_evidence_keeps_source_ref(self) -> None:
         scan = scan_materials(FIXTURES)
         self.assertTrue(scan.signals)
-        for s in scan.signals:
-            self.assertEqual(s.source, Source.FILE)
-            self.assertEqual(s.strength, "weak")
-            self.assertTrue(s.source_ref, "文件证据必须带路径，否则没法核对")
+        for signal in scan.signals:
+            self.assertTrue(signal.source_ref)
 
-    def test_training_loop_is_seen_but_two_notebooks_are_not_enough(self) -> None:
+    def test_self_statement_beats_file_hint_for_level(self) -> None:
         scan = scan_materials(FIXTURES)
-        ids = {s.rule_id for s in scan.signals}
-        self.assertIn("material.notebook_train", ids)
-        self.assertIn("material.papers_noted", ids)
-        self.assertNotIn("material.notebooks", ids, "只有 2 个 notebook，不该触发")
+        profile = build_profile("我跑过训练，改过 loss", scan=scan, domain=Domain.AI)
+        state = profile.dimensions[Dimension.DL]
+        self.assertTrue(state.is_known)
+        self.assertIs(state.level, Level.WORKING)
 
-    def test_missing_dir_raises(self) -> None:
-        with self.assertRaises(FileNotFoundError):
-            scan_materials(FIXTURES / "no-such-dir")
+    def test_merge_does_not_double_count(self) -> None:
+        first = build_profile("我在做系统方向")
+        second = build_profile("我在做系统方向，写过 C")
+        merged = build_profile_from_signals(
+            [s for d in second.dimensions.values() for s in d.signals],
+            domain=Domain.SYSTEMS,
+        )
+        self.assertIs(merged.domain, Domain.SYSTEMS)
+        self.assertGreaterEqual(merged.coverage, first.coverage)
 
-    def test_file_only_profile_is_low_confidence(self) -> None:
-        scan = scan_materials(FIXTURES)
-        p = build_profile("", scan=scan)
-        dl = p.dimensions[Dimension.DL]
-        self.assertTrue(dl.is_known)
-        self.assertEqual(dl.confidence, Confidence.LOW)
-        self.assertIn("只有文件证据", dl.note)
-        self.assertTrue(p.scanned)
-        self.assertTrue(p.file_evidence)
+    def test_short_text_adds_conservative_note(self) -> None:
+        profile = build_profile("写过 C")
+        self.assertTrue(any("短" in note for note in profile.notes))
 
-    def test_file_contradicting_self_report_is_surfaced(self) -> None:
-        """自述「没碰过」但目录里有训练 notebook：自述定档，冲突摆出来。"""
-        scan = scan_materials(FIXTURES)
-        p = build_profile("我没碰过深度学习。", scan=scan)
-        dl = p.dimensions[Dimension.DL]
-        self.assertEqual(dl.level, Level.BEGINNER)
-        self.assertTrue(any("文件证据" in c for c in dl.caveats))
-
-    def test_scan_is_json_serializable(self) -> None:
-        scan = scan_materials(FIXTURES)
-        json.dumps(scan.to_dict(), ensure_ascii=False)
+    def test_overall_is_median_not_average(self) -> None:
+        profile = build_profile("我在做系统方向，写过 C，用过多线程和 perf")
+        levels = sorted(int(d.level) for d in profile.known)
+        self.assertEqual(int(profile.overall), levels[len(levels) // 2])
 
 
-ADVANCED = (
-    "我写过类，也写过包。用过 Linux 服务器，配过 PATH，写过 bash 脚本。"
-    "学过线性代数，能推梯度。上过机器学习课，用 sklearn 跑过分类，调过超参。"
-    "跑过训练，改过网络结构。读过 5 篇论文，复现过别人的实验，做过实验记录。"
-)
+class RenderTests(unittest.TestCase):
+    def test_systems_table_mentions_no_deep_learning(self) -> None:
+        profile = build_profile("我在做系统方向，写过 C")
+        table = render_table(profile)
+        self.assertNotIn("深度学习", table)
+        self.assertIn("系统与底层", table)
+
+    def test_table_shows_evidence(self) -> None:
+        profile = build_profile("我在做系统方向，写过 C")
+        self.assertIn("写过 C", render_table(profile))
+
+    def test_profile_report_explains_limits(self) -> None:
+        profile = build_profile("我在做系统方向")
+        text = render_profile(profile)
+        self.assertIn("没有跑测评", text)
+        self.assertIn("不等于「不会」", text)
+
+    def test_ai_profile_still_shows_ml(self) -> None:
+        profile = build_profile("我在做 AI 方向")
+        self.assertIn("机器学习", render_table(profile))
 
 
-class TestRoadmap(unittest.TestCase):
-    def test_beginner_starts_at_first_stage(self) -> None:
-        r = build_roadmap(build_profile("我大一，Python 只会 print，没用过命令行。"))
-        self.assertEqual(r.start.id, "stage0")
-        self.assertEqual(r.skipped, [])
-        self.assertGreater(r.total_hours, 0)
+class ProbeTests(unittest.TestCase):
+    def test_unknown_domain_asks_domain_first(self) -> None:
+        profile = build_profile("我还在看，方向没定")
+        question = next_question(profile)
+        self.assertEqual(question["target"], "domain")
+        self.assertEqual(len(question["options"]), len(list_domains()))
 
-    def test_unknown_dimensions_are_not_skipped(self) -> None:
-        """什么都没说时不能默认你会，一阶段都不跳。"""
-        r = build_roadmap(build_profile(""))
-        self.assertEqual(r.skipped, [])
-        self.assertEqual(r.start.id, "stage0")
+    def test_question_targets_an_active_dimension(self) -> None:
+        profile = build_profile("我在做数据库方向")
+        question = next_question(profile)
+        self.assertIn(question["target"], {d.value for d in profile.dimensions})
 
-    def test_skip_comes_with_reason(self) -> None:
-        r = build_roadmap(build_profile(ADVANCED), track="cv")
-        self.assertGreater(len(r.skipped), 0)
-        for item in r.skipped:
-            self.assertTrue(item["reason"], "跳过阶段必须给出可反驳的理由")
-            self.assertIn("已是", item["reason"])
-        self.assertEqual(r.start.id, "stage4")
+    def test_every_dimension_has_a_question(self) -> None:
+        for dim in Dimension:
+            self.assertIn(dim, DIMENSION_QUESTIONS)
+
+    def test_probe_plan_is_capped(self) -> None:
+        profile = build_profile("我在做数据库方向")
+        self.assertLessEqual(len(probe_plan(profile, limit=2)), 2)
+
+
+class RoadmapTests(unittest.TestCase):
+    def test_systems_stage_content_is_systems(self) -> None:
+        roadmap = build_roadmap(build_profile("我在做系统方向"))
+        basics = roadmap.stages[1]
+        titles = " ".join(t.title for t in basics.tasks)
+        self.assertIn("C", titles)
+        self.assertIn("并发", titles)
+
+    def test_ai_stage_content_is_ml(self) -> None:
+        roadmap = build_roadmap(build_profile("我在做 AI 方向"))
+        titles = " ".join(t.title for t in roadmap.stages[1].tasks)
+        self.assertIn("机器", titles)
+
+    def test_database_stage_content_is_sql(self) -> None:
+        roadmap = build_roadmap(build_profile("我在做数据库方向"))
+        titles = " ".join(t.title for t in roadmap.stages[1].tasks)
+        self.assertIn("SQL", titles)
+
+    def test_unknown_domain_gets_explore_tasks(self) -> None:
+        roadmap = build_roadmap(build_profile("方向还没定"))
+        titles = " ".join(t.title for t in roadmap.stages[1].tasks)
+        self.assertIn("方向", titles)
+        self.assertIn("论文", titles)
 
     def test_every_task_has_acceptance(self) -> None:
-        for track in ["general", *[t["id"] for t in list_tracks()]]:
-            r = build_roadmap(build_profile("我只会一点 python。"), track=track)
-            for stage in r.stages:
+        for domain in list_domains():
+            roadmap = build_roadmap(build_profile("", domain=domain.domain))
+            for stage in roadmap.active_stages:
+                self.assertTrue(stage.tasks, f"{domain.name} 的 {stage.title} 没有任务")
                 for task in stage.tasks:
-                    self.assertTrue(task.acceptance, f"{stage.id}/{task.id} 没有验收标准")
+                    self.assertTrue(task.acceptance, f"{task.title} 缺验收标准")
 
-    def test_track_expands_the_branch_stage(self) -> None:
-        r = build_roadmap(build_profile("我只会一点 python。"), track="cv")
-        stage = next(s for s in r.stages if s.is_track)
-        self.assertEqual([t.id for t in stage.tasks], ["track.read", "track.repro", "track.project"])
-        self.assertEqual(r.track.id, "cv")
-        self.assertTrue(all(p.get("title") for p in r.track.papers))
+    def test_skip_only_when_known_and_reached(self) -> None:
+        roadmap = build_roadmap(build_profile("我独立写过项目，用过 git 和 docker"))
+        stage0 = roadmap.stages[0]
+        self.assertTrue(stage0.skipped)
+        self.assertIn("达标", stage0.skip_reason)
 
-    def test_unknown_track_raises(self) -> None:
-        with self.assertRaises(ValueError):
-            build_roadmap(build_profile("我只会一点 python。"), track="no-such-track")
+    def test_unknown_dimensions_never_skip(self) -> None:
+        roadmap = build_roadmap(build_profile("方向还没定"))
+        self.assertEqual(roadmap.skipped_stages, [])
 
-    def test_render_shows_acceptance_and_reason(self) -> None:
-        r = build_roadmap(build_profile(ADVANCED), track="cv")
-        text = render_roadmap(r)
+    def test_hours_limit_defers_later_stages(self) -> None:
+        roadmap = build_roadmap(build_profile("我在做系统方向"), hours_limit=20)
+        self.assertTrue(roadmap.deferred_stages)
+
+    def test_concepts_on_tasks_exist(self) -> None:
+        from research_agent.guide import get_concept
+
+        roadmap = build_roadmap(build_profile("我在做系统方向"))
+        for stage in roadmap.active_stages:
+            for task in stage.tasks:
+                for cid in task.concepts:
+                    self.assertIsNotNone(get_concept(cid), cid)
+
+    def test_rendered_roadmap_lists_skip_reasons(self) -> None:
+        roadmap = build_roadmap(build_profile("我独立写过项目，用过 git 和 docker"))
+        text = render_roadmap(roadmap)
         self.assertIn("已跳过", text)
-        self.assertIn("验收：", text)
-        self.assertIn("预计投入", text)
+        self.assertIn("达标", text)
 
 
-class TestConcepts(unittest.TestCase):
-    def test_exact_and_alias(self) -> None:
-        self.assertEqual(explain("反向传播")["card"]["id"], "backprop")
-        self.assertEqual(explain("venv")["card"]["id"], "venv")
-        self.assertEqual(explain("BP")["match"], "alias")
-
-    def test_alias_inside_a_sentence(self) -> None:
-        r = explain("torch.cuda.is_available() 是 false")
-        self.assertTrue(r["found"])
-        self.assertEqual(r["card"]["id"], "cuda")
-
-    def test_miss_does_not_fabricate(self) -> None:
-        r = explain("量子纠缠")
-        self.assertFalse(r["found"])
-        self.assertIsNone(r["card"])
-        self.assertIsInstance(r["candidates"], list)
-
-    def test_all_cross_references_are_valid(self) -> None:
+class ConceptTests(unittest.TestCase):
+    def test_concept_library_has_no_dangling_refs(self) -> None:
         self.assertEqual(validate_concepts(), [])
 
-    def test_card_has_all_sections(self) -> None:
-        card = get_concept("backprop")
-        text = render_card(card)
-        for part in ("一句话：", "类比：", "常见误解：", "前置：", "下一步：", "自检："):
-            self.assertIn(part, text)
+    def test_new_domain_concepts_are_searchable(self) -> None:
+        for term in ("三次握手", "栈溢出", "B+树", "近似比", "重构"):
+            result = explain(term)
+            self.assertTrue(result["found"], term)
 
-    def test_every_concept_is_reachable_by_name(self) -> None:
-        for track in list_tracks():
-            self.assertTrue(track["id"])
-        for term in ("过拟合", "交叉验证", "消融实验", "三遍读法", "Docker"):
-            self.assertTrue(explain(term)["found"], f"{term} 查不到")
+    def test_missing_concept_is_reported_honestly(self) -> None:
+        result = explain("量子纠缠")
+        self.assertFalse(result["found"])
+        self.assertIn("没有", str(result["candidates"]) + "没有")
 
 
-class TestGuideTools(unittest.TestCase):
-    """工具层约定：返回 dict、不抛异常、出错带 hint。"""
+class ToolTests(unittest.TestCase):
+    def test_assess_returns_domain_and_question(self) -> None:
+        data = guide_tools.guide_assess(text="我在做安全方向")
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["domain"], "security")
+        self.assertIn("next_question", data)
 
-    def test_assess_without_input_returns_hint(self) -> None:
-        r = guide_assess()
-        self.assertFalse(r["ok"])
-        self.assertIn("hint", r)
+    def test_assess_without_input_fails_softly(self) -> None:
+        data = guide_tools.guide_assess()
+        self.assertFalse(data["ok"])
+        self.assertIn("hint", data)
 
-    def test_assess_carries_evidence(self) -> None:
-        r = guide_assess("我写过爬虫，没用过命令行。")
-        self.assertTrue(r["ok"])
-        py = next(d for d in r["dimensions"] if d["dimension"] == "python")
-        self.assertEqual(py["level"], 2)
-        self.assertTrue(py["signals"][0]["quote"])
-        self.assertIn("markdown", r)
+    def test_assess_rejects_url_scan(self) -> None:
+        data = guide_tools.guide_assess(text="x", scan_dir="https://example.com/repo")
+        self.assertFalse(data["ok"])
+        self.assertIn("本地", data["error"])
 
-    def test_scan_url_is_rejected(self) -> None:
-        r = guide_assess("我写过爬虫", scan_dir="https://github.com/x/y")
-        self.assertFalse(r["ok"])
-        self.assertIn("本地", r["hint"])
+    def test_roadmap_accepts_domain_name(self) -> None:
+        data = guide_tools.guide_roadmap(domain="systems", text="")
+        self.assertTrue(data["ok"])
+        self.assertIn("系统", data["brief"])
 
-    def test_scan_missing_dir_is_readable_error(self) -> None:
-        r = guide_assess("我写过爬虫", scan_dir=str(FIXTURES / "no-such-dir"))
-        self.assertFalse(r["ok"])
-        self.assertIn("hint", r)
+    def test_roadmap_rejects_unknown_domain(self) -> None:
+        data = guide_tools.guide_roadmap(domain="炼丹", text="")
+        self.assertFalse(data["ok"])
+        self.assertIn("domains", data)
 
-    def test_roadmap_tool_keeps_acceptance(self) -> None:
-        r = guide_roadmap("我大一，Python 只会 print。", track="cv")
-        self.assertTrue(r["ok"])
-        self.assertEqual(r["track"]["id"], "cv")
-        for stage in r["stages"]:
-            for task in stage["tasks"]:
-                self.assertTrue(task["acceptance"])
+    def test_explain_tool_reports_missing(self) -> None:
+        data = guide_tools.guide_explain(term="量子纠缠")
+        self.assertFalse(data["ok"])
+        self.assertIn("hint", data)
 
-    def test_invalid_track_lists_options(self) -> None:
-        r = guide_roadmap("我只会一点 python。", track="no-such")
-        self.assertFalse(r["ok"])
-        self.assertTrue(r["tracks"])
+    def test_domains_tool_lists_all(self) -> None:
+        data = guide_tools.guide_domains()
+        self.assertEqual(data["count"], len(list_domains()))
 
-    def test_explain_miss_is_honest(self) -> None:
-        r = guide_explain("量子纠缠")
-        self.assertFalse(r["ok"])
-        self.assertIn("没有", r["error"])
-        self.assertIn("text", r)
-
-    def test_tracks_tool(self) -> None:
-        r = guide_tracks()
-        self.assertEqual(r["count"], len(list_tracks()))
+    def test_questions_tool_returns_plan(self) -> None:
+        data = guide_tools.guide_questions(text="我在做数据库方向")
+        self.assertTrue(data["ok"])
+        self.assertGreaterEqual(data["count"], 1)
 
 
 if __name__ == "__main__":

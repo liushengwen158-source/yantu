@@ -57,7 +57,15 @@ NOTE_KEYWORDS: dict[Dimension, tuple[str, ...]] = {
     Dimension.ML: ("过拟合", "交叉验证", "正则化", "训练集", "验证集", "分类器", "回归"),
     Dimension.DL: ("反向传播", "卷积", "注意力", "transformer", "学习率", "epoch", "损失函数"),
     Dimension.RESEARCH: ("论文", "复现", "消融", "实验记录", "baseline", "arxiv", "引用"),
+    Dimension.SYSTEMS: ("进程", "线程", "死锁", "内存分配", "调度", "缓存", "syscall", "页表"),
+    Dimension.DATA: ("索引", "事务", "b+树", "查询计划", "范式", "join", "sql"),
+    Dimension.SECURITY: ("漏洞", "栈溢出", "汇编", "逆向", "加密", "签名", "威胁模型"),
+    Dimension.THEORY: ("复杂度", "np", "归约", "证明", "近似比", "定理"),
 }
+
+# 目录里有这些源码，说明干活的语言不是 Python；按弱证据给系统/数据维。
+CODE_EXT_SYSTEMS = {".c", ".cc", ".cpp", ".h", ".hpp", ".rs", ".go", ".s", ".asm"}
+CODE_EXT_DATA = {".sql"}
 
 
 @dataclass
@@ -179,6 +187,40 @@ def _signal(
     )
 
 
+def _code_signals(code_files: dict[str, list[str]]) -> list[Signal]:
+    """目录里有 C/C++/Rust/Go 源码，说明动手的语言不是 Python。
+
+    只算弱证据：有文件不等于写过、更不等于写得好；方向不同，这条证据的
+    权重也不同，所以不在这里判断方向。
+    """
+    out: list[Signal] = []
+    systems = code_files.get("systems") or []
+    if len(systems) >= 3:
+        out.append(
+            _signal(
+                "material.code_systems",
+                Dimension.SYSTEMS,
+                Level.FOUNDATION,
+                f"目录里有 {len(systems)} 个 C/C++/Rust/Go 源码（如 {systems[0]}）",
+                "底层语言的文件通常意味着写过系统向的代码，但数量与质量都看不出来",
+                systems[0],
+            )
+        )
+    data = code_files.get("data") or []
+    if data:
+        out.append(
+            _signal(
+                "material.sql",
+                Dimension.DATA,
+                Level.FOUNDATION,
+                f"目录里有 SQL 文件（如 {data[0]}）",
+                "有建表或查询脚本，说明跟数据库打过交道",
+                data[0],
+            )
+        )
+    return out
+
+
 def scan_materials(root: str | os.PathLike[str]) -> MaterialScan:
     """扫描授权目录，产出文件证据。
 
@@ -193,6 +235,7 @@ def scan_materials(root: str | os.PathLike[str]) -> MaterialScan:
     files, truncated = _walk(path)
     scan = MaterialScan(root=str(path), truncated=truncated)
     counts = {"paper": 0, "notebook": 0, "notes": 0, "other": 0}
+    code_files: dict[str, list[str]] = {"systems": [], "data": []}
 
     for file in files:
         ext = file.suffix.lower()
@@ -211,6 +254,11 @@ def scan_materials(root: str | os.PathLike[str]) -> MaterialScan:
         else:
             kind = "other"
         counts[kind] += 1
+
+        if ext in CODE_EXT_SYSTEMS:
+            code_files["systems"].append(rel)
+        elif ext in CODE_EXT_DATA:
+            code_files["data"].append(rel)
 
         if kind == "other":
             continue
@@ -236,6 +284,7 @@ def scan_materials(root: str | os.PathLike[str]) -> MaterialScan:
     scan.signals.extend(_paper_signals(papers))
     scan.signals.extend(_notebook_signals(notebooks, path))
     scan.signals.extend(_note_signals(notes, path))
+    scan.signals.extend(_code_signals(code_files))
 
     scan.notes.append(
         "文件证据只能证明材料在，不能证明读过或会做；按弱证据处理，不定高中档。"
@@ -335,7 +384,7 @@ def _notebook_signals(notebooks: list[Material], root: Path) -> list[Signal]:
         out.append(
             _signal(
                 "material.notebooks",
-                Dimension.PYTHON,
+                Dimension.CODING,
                 Level.FOUNDATION,
                 f"目录里有 {len(notebooks)} 个 notebook",
                 "notebook 数量多说明常用 Python 做实验，但代码质量看不出来",

@@ -1,0 +1,1022 @@
+{
+  "version": 2,
+  "note": "方向库。dims 同时决定两件事：这个方向需要评估哪些维度，以及每条维度至少要什么档位。keywords 只用于从对话里识别方向，不做能力判断。stage_tasks 是该方向的基本功，papers 是阅读起点，first_project 是可交付的第一个小工作。",
+  "domains": [
+    {
+      "id": "systems",
+      "name": "系统与体系结构",
+      "why": "离硬件近、实验多为测量与权衡，做出来能直接看到性能数字的变化。",
+      "keywords": [
+        "操作系统",
+        "内核",
+        "编译器",
+        "分布式",
+        "存储引擎",
+        "虚拟化",
+        "体系结构",
+        "调度器",
+        "文件系统",
+        "内存管理",
+        "container",
+        "容器运行时",
+        "database kernel",
+        "系统方向",
+        "做系统",
+        "操作系统方向",
+        "system"
+      ],
+      "dims": {
+        "coding": 3,
+        "tools": 2,
+        "systems": 2,
+        "math": 1
+      },
+      "skills": [
+        "C/C++、指针与内存",
+        "并发与锁",
+        "gdb / perf / strace",
+        "容器与虚拟机"
+      ],
+      "reading_hint": "先看它测量了什么、和谁比，再看设计取舍；系统论文的贡献常常在「代价换来了什么」，不在算法本身。",
+      "papers": [
+        {
+          "title": "The UNIX Time-Sharing System",
+          "why": "理解「把一切抽象成文件」这个设计决定影响了后面五十年。",
+          "level": "入门",
+          "note": "短，重点看设计原则而不是实现细节。"
+        },
+        {
+          "title": "The Google File System",
+          "why": "大规模存储的第一代答案，读它能理解容错与一致性怎么权衡。",
+          "level": "必读",
+          "note": "注意它假设的故障模型：机器会坏，而且坏得很频繁。"
+        },
+        {
+          "title": "MapReduce: Simplified Data Processing on Large Clusters",
+          "why": "把分布式计算抽象成两个函数，是理解「接口决定可用性」的样板。",
+          "level": "进阶",
+          "note": "可以自己实现一个单机版验证理解。"
+        }
+      ],
+      "stage_tasks": [
+        {
+          "id": "sys.memory",
+          "title": "C 与内存",
+          "detail": "指针、数组、结构体内存布局、动态分配与释放。",
+          "acceptance": [
+            "手写动态数组和哈希表，插入 10 万条不出错",
+            "用 ASan 或 valgrind 跑一遍，零内存错误、零泄漏",
+            "能解释一次越界访问为什么不一定立刻崩溃"
+          ],
+          "hours": 12,
+          "concepts": [
+            "memory-model"
+          ]
+        },
+        {
+          "id": "sys.concurrency",
+          "title": "并发与调试",
+          "detail": "线程、锁、条件变量；用调试器看一次真实的数据竞争或死锁。",
+          "acceptance": [
+            "写一个多线程生产者-消费者，跑 1 万次不丢数据",
+            "用 gdb 或日志抓到一次死锁，说明是哪把锁顺序反了",
+            "改用条件变量或原子操作修好，并说明代价"
+          ],
+          "hours": 12,
+          "concepts": [
+            "concurrency"
+          ]
+        },
+        {
+          "id": "sys.profiling",
+          "title": "性能测量与优化",
+          "detail": "用 perf / 火焰图找热点，做一次有数据支撑的优化。",
+          "acceptance": [
+            "对一个程序跑出火焰图，指出最热的三个函数",
+            "优化后耗时下降 ≥20%，前后数据都记录",
+            "说清优化动的是算法、内存访问还是并行度"
+          ],
+          "hours": 10,
+          "concepts": [
+            "profiler"
+          ]
+        }
+      ],
+      "first_project": {
+        "id": "sys.project",
+        "title": "写一个能测的小系统组件",
+        "detail": "例如简易内存分配器、线程池、LRU 缓存或日志结构存储。",
+        "acceptance": [
+          "有可运行的实现和一份基准测试（吞吐 / 延迟 / 内存）",
+          "和至少一个现有实现或朴素版本对比，解释差异来源",
+          "写下它在什么负载下会退化"
+        ],
+        "hours": 25,
+        "concepts": [
+          "profiler",
+          "concurrency"
+        ]
+      }
+    },
+    {
+      "id": "networks",
+      "name": "网络",
+      "why": "协议与测量结合紧密，实验成本低，一台机器就能复现很多现象。",
+      "keywords": [
+        "网络",
+        "协议",
+        "TCP",
+        "UDP",
+        "路由",
+        "拥塞控制",
+        "SDN",
+        "数据中心网络",
+        "无线",
+        "socket 编程",
+        "网络方向",
+        "networking"
+      ],
+      "dims": {
+        "coding": 2,
+        "tools": 2,
+        "systems": 2
+      },
+      "skills": [
+        "TCP/IP 协议栈",
+        "抓包与协议分析",
+        "socket 编程",
+        "网络模拟（mininet / ns-3）"
+      ],
+      "reading_hint": "网络论文先看它想解决哪种「不公平或不稳定」，再看它用什么信号做决策。",
+      "papers": [
+        {
+          "title": "End-to-End Arguments in System Design",
+          "why": "一个判断「功能该放在哪一层」的通用原则，影响远超网络。",
+          "level": "入门",
+          "note": "短，值得读两遍。"
+        },
+        {
+          "title": "Congestion Avoidance and Control",
+          "why": "拥塞控制的开山之作，理解 AIMD 为什么能在分布式的世界里稳定。",
+          "level": "必读",
+          "note": "重点看它如何用丢包当拥塞信号。"
+        },
+        {
+          "title": "OpenFlow: Enabling Innovation in Campus Networks",
+          "why": "控制面与数据面分离的起点，读它能理解现代网络的架构选择。",
+          "level": "进阶",
+          "note": "配合 mininet 跑一次流表下发。"
+        }
+      ],
+      "stage_tasks": [
+        {
+          "id": "net.packet",
+          "title": "抓包读协议",
+          "detail": "用 tcpdump / Wireshark 看真实流量，逐字段解释。",
+          "acceptance": [
+            "抓一次完整 TCP 三次握手与四次挥手，解释每个字段",
+            "人为制造一次重传或乱序，指出日志里怎么体现",
+            "说清 MTU 和分片在哪一层发生"
+          ],
+          "hours": 8,
+          "concepts": [
+            "tcp-handshake"
+          ]
+        },
+        {
+          "id": "net.socket",
+          "title": "socket 编程",
+          "detail": "从 echo 服务到简易 HTTP 客户端，理解阻塞与非阻塞。",
+          "acceptance": [
+            "写一个 TCP echo 服务和客户端，支持多连接",
+            "实现一个能取回网页的简易 HTTP 客户端",
+            "解释为什么需要 SO_REUSEADDR"
+          ],
+          "hours": 10,
+          "concepts": [
+            "socket"
+          ]
+        },
+        {
+          "id": "net.measure",
+          "title": "网络测量",
+          "detail": "用 ping / traceroute / iperf 测延迟、丢包与带宽。",
+          "acceptance": [
+            "测出本机到三个不同目标的 RTT 并解释差异",
+            "用 iperf 测带宽，对比单流与多流",
+            "说清延迟、带宽、吞吐三者的区别"
+          ],
+          "hours": 6,
+          "concepts": [
+            "tcp-handshake"
+          ]
+        }
+      ],
+      "first_project": {
+        "id": "net.project",
+        "title": "实现一个可靠传输或拥塞控制的小实验",
+        "detail": "例如基于 UDP 的可靠传输，或在模拟器里对比两种拥塞控制。",
+        "acceptance": [
+          "有对比实验：不同丢包率下的吞吐与延迟",
+          "能解释你的实现在什么条件下不如 TCP",
+          "记录完整参数与脚本，别人能重跑"
+        ],
+        "hours": 20,
+        "concepts": [
+          "socket",
+          "experiment-log"
+        ]
+      }
+    },
+    {
+      "id": "security",
+      "name": "安全",
+      "why": "问题具体、反馈直接，但要求愿意读汇编和协议细节。",
+      "keywords": [
+        "安全",
+        "漏洞",
+        "逆向",
+        "CTF",
+        "密码学",
+        "恶意代码",
+        "隐私",
+        "模糊测试",
+        "二进制",
+        "渗透",
+        "exploit",
+        "安全方向",
+        "security"
+      ],
+      "dims": {
+        "coding": 3,
+        "tools": 2,
+        "systems": 2,
+        "security": 2
+      },
+      "skills": [
+        "汇编与调试器",
+        "逆向与二进制分析",
+        "密码学基础",
+        "模糊测试"
+      ],
+      "reading_hint": "安全论文先看威胁模型：攻击者能做什么、不能做什么；脱离威胁模型的「防御」没有意义。",
+      "papers": [
+        {
+          "title": "Reflections on Trusting Trust",
+          "why": "用三页讲清「你能信任什么」，是安全思维的地基。",
+          "level": "必读",
+          "note": "读完再想一遍你现在信任的工具链。"
+        },
+        {
+          "title": "Smashing the Stack for Fun and Profit",
+          "why": "栈溢出的经典讲解，理解内存布局与漏洞成因。",
+          "level": "入门",
+          "note": "在靶机或容器里复现，不要碰真实系统。"
+        },
+        {
+          "title": "SoK: Eternal War in Memory",
+          "why": "系统梳理内存安全攻防，建立整体框架而不是零散技巧。",
+          "level": "进阶",
+          "note": "当作地图读，不必记住每个攻击名。"
+        }
+      ],
+      "stage_tasks": [
+        {
+          "id": "sec.asm",
+          "title": "汇编与调试",
+          "detail": "用 gdb 读一个简单二进制，理解寄存器、栈与调用约定。",
+          "acceptance": [
+            "在 gdb 里单步走过一个函数调用，画出栈帧变化",
+            "找出程序里做关键判断的那条指令",
+            "能解释 x86-64 前六个参数放在哪"
+          ],
+          "hours": 10,
+          "concepts": [
+            "memory-model",
+            "buffer-overflow"
+          ]
+        },
+        {
+          "id": "sec.vuln",
+          "title": "复现一次漏洞",
+          "detail": "在靶机或容器里复现栈溢出，理解可控输入到控制流劫持的路径。",
+          "acceptance": [
+            "写出复现步骤与最小输入",
+            "说清溢出点、覆盖了哪块内存、为什么能改返回地址",
+            "给出至少一种修复方式并验证有效"
+          ],
+          "hours": 12,
+          "concepts": [
+            "buffer-overflow"
+          ]
+        },
+        {
+          "id": "sec.crypto",
+          "title": "密码学工具与概念",
+          "detail": "哈希、对称加密、公私钥与签名，用 openssl 各做一次。",
+          "acceptance": [
+            "用 openssl 完成一次签名与验签，并解释为什么需要哈希",
+            "说清对称与非对称各自的性能与用途",
+            "能指出「自己实现加密」为什么危险"
+          ],
+          "hours": 6,
+          "concepts": [
+            "crypto-basics"
+          ]
+        }
+      ],
+      "first_project": {
+        "id": "sec.project",
+        "title": "做一次完整的安全分析",
+        "detail": "选一道 CTF 题或一个已公开 CVE，做复现 + 根因 + 修复。",
+        "acceptance": [
+          "写出完整的分析报告：现象、根因、影响面、修复建议",
+          "复现过程可被他人按步骤重跑",
+          "至少指出一个检测或防护手段为什么没拦住"
+        ],
+        "hours": 20,
+        "concepts": [
+          "buffer-overflow",
+          "report"
+        ]
+      }
+    },
+    {
+      "id": "database",
+      "name": "数据库与数据管理",
+      "why": "系统与数据的交界，既有工程实现也有查询语义，实验容易量化。",
+      "keywords": [
+        "数据库",
+        "SQL",
+        "查询优化",
+        "事务",
+        "索引",
+        "存储引擎",
+        "数据管理",
+        "OLAP",
+        "OLTP",
+        "键值存储",
+        "数据库方向",
+        "db"
+      ],
+      "dims": {
+        "coding": 2,
+        "data": 2,
+        "systems": 1,
+        "tools": 1
+      },
+      "skills": [
+        "SQL 与执行计划",
+        "事务与隔离级别",
+        "存储结构（B+ 树 / LSM）",
+        "查询优化基础"
+      ],
+      "reading_hint": "数据库论文先看它支持什么语义、付出什么代价；性能数字要在给定的负载模型下才有意义。",
+      "papers": [
+        {
+          "title": "A Relational Model of Data for Large Shared Data Banks",
+          "why": "关系模型的源头，理解「用声明式查询换实现自由」。",
+          "level": "入门",
+          "note": "数学味重，抓住「关系」与「独立性」两个词。"
+        },
+        {
+          "title": "Architecture of a Database System",
+          "why": "把数据库拆成模块看，是建立整体认知最快的一篇。",
+          "level": "必读",
+          "note": "适合边读边画模块图。"
+        },
+        {
+          "title": "Spanner: Google's Globally-Distributed Database",
+          "why": "理解一致性与可用性在跨地域场景下怎么权衡。",
+          "level": "进阶",
+          "note": "重点是 TrueTime 这个设计选择。"
+        }
+      ],
+      "stage_tasks": [
+        {
+          "id": "db.sql",
+          "title": "SQL 与执行计划",
+          "detail": "写查询、造慢查询、加索引、用 EXPLAIN 验证。",
+          "acceptance": [
+            "在百万行表上复现一次全表扫描",
+            "加索引后耗时下降，并用 EXPLAIN 指出变化",
+            "解释为什么索引会让写入变慢"
+          ],
+          "hours": 8,
+          "concepts": [
+            "sql-index"
+          ]
+        },
+        {
+          "id": "db.txn",
+          "title": "事务与隔离级别",
+          "detail": "两个会话复现丢失更新、脏读，理解隔离级别的取舍。",
+          "acceptance": [
+            "复现一次丢失更新并说明原因",
+            "用隔离级别或显式加锁修好，并测并发性能变化",
+            "说清四种隔离级别各挡住什么问题"
+          ],
+          "hours": 8,
+          "concepts": [
+            "transaction"
+          ]
+        },
+        {
+          "id": "db.storage",
+          "title": "实现一个存储结构",
+          "detail": "B+ 树的插入、删除与范围查询，或一个简易 LSM。",
+          "acceptance": [
+            "实现插入/删除/范围查询并通过随机测试",
+            "持久化到磁盘后能正确恢复",
+            "给出 10 万条数据的读写耗时"
+          ],
+          "hours": 16,
+          "concepts": [
+            "btree"
+          ]
+        }
+      ],
+      "first_project": {
+        "id": "db.project",
+        "title": "做一个能跑查询的小存储引擎",
+        "detail": "支持建表、插入、按主键查询与一个二级索引。",
+        "acceptance": [
+          "有可运行的 CLI 或测试，覆盖正常与异常输入",
+          "给出与 SQLite 在同类查询上的对比数据",
+          "说明你的实现缺哪些能力（事务、并发、恢复）"
+        ],
+        "hours": 25,
+        "concepts": [
+          "btree",
+          "transaction"
+        ]
+      }
+    },
+    {
+      "id": "theory",
+      "name": "理论与算法",
+      "why": "产出是证明与反例，不需要大算力，但要求愿意推公式、写严谨的论证。",
+      "keywords": [
+        "理论",
+        "算法",
+        "复杂度",
+        "证明",
+        "离散数学",
+        "组合优化",
+        "计算复杂性",
+        "图论",
+        "近似算法",
+        "随机算法",
+        "理论方向",
+        "algorithm"
+      ],
+      "dims": {
+        "math": 3,
+        "theory": 2,
+        "coding": 2
+      },
+      "skills": [
+        "离散数学与组合",
+        "归纳与归约证明",
+        "复杂度分析",
+        "算法实现与验证"
+      ],
+      "reading_hint": "理论论文先看定理陈述和证明骨架，再看技术细节；看不懂某一步时，先确认它用了哪个已知结论。",
+      "papers": [
+        {
+          "title": "A Note on Two Problems in Connexion with Graphs",
+          "why": "Dijkstra 算法的原始论文，短到可以完整读完。",
+          "level": "入门",
+          "note": "注意它没有用堆，复杂度讨论和现在不一样。"
+        },
+        {
+          "title": "Reducibility Among Combinatorial Problems",
+          "why": "21 个 NP 完全问题的归约，是理解「难」的统一框架。",
+          "level": "必读",
+          "note": "挑两三个归约跟着推一遍。"
+        },
+        {
+          "title": "The Complexity of Theorem-Proving Procedures",
+          "why": "Cook 定理，P/NP 问题的起点。",
+          "level": "进阶",
+          "note": "重点看自归约与通用图灵机的构造思路。"
+        }
+      ],
+      "stage_tasks": [
+        {
+          "id": "th.proof",
+          "title": "证明基本功",
+          "detail": "归纳法、反证法、归约，各写一个完整证明。",
+          "acceptance": [
+            "写出三个完整证明，每一步标明依据",
+            "把一个新问题归约到已知 NP 完全问题",
+            "能指出别人证明里跳过的关键一步"
+          ],
+          "hours": 12,
+          "concepts": [
+            "proof",
+            "complexity"
+          ]
+        },
+        {
+          "id": "th.complexity",
+          "title": "复杂度分析",
+          "detail": "给算法写时间与空间界，区分最坏、平均与摊还。",
+          "acceptance": [
+            "给五个算法写出紧确界并说明推导",
+            "构造一个让某算法退化的输入",
+            "解释摊还分析在动态数组上的应用"
+          ],
+          "hours": 8,
+          "concepts": [
+            "complexity"
+          ]
+        },
+        {
+          "id": "th.approx",
+          "title": "近似算法",
+          "detail": "实现一个近似算法，验证它的近似比。",
+          "acceptance": [
+            "实现顶点覆盖的 2-近似并证明为什么是 2",
+            "在小规模数据上穷举最优解，验证实际比值",
+            "构造一个让近似比接近上界的例子"
+          ],
+          "hours": 12,
+          "concepts": [
+            "approximation"
+          ]
+        }
+      ],
+      "first_project": {
+        "id": "th.project",
+        "title": "验证或改进一个理论结论",
+        "detail": "可以是复现一篇论文的证明思路并用实验验证，也可以是给小规模反例。",
+        "acceptance": [
+          "写清结论、证明或实验设计",
+          "给出可核对的推导或数据",
+          "诚实写出你的结论的适用范围与反例"
+        ],
+        "hours": 20,
+        "concepts": [
+          "proof",
+          "report"
+        ]
+      }
+    },
+    {
+      "id": "software",
+      "name": "软件工程与程序语言",
+      "why": "研究人与代码的关系，实验常在真实仓库上做，需要工程习惯与统计意识。",
+      "keywords": [
+        "软件工程",
+        "程序语言",
+        "编译器前端",
+        "静态分析",
+        "代码",
+        "重构",
+        "测试",
+        "开发者",
+        "IDE",
+        "类型系统",
+        "程序分析",
+        "软件工程方向",
+        "se"
+      ],
+      "dims": {
+        "coding": 3,
+        "tools": 2,
+        "theory": 1,
+        "research": 2
+      },
+      "skills": [
+        "测试与 CI",
+        "重构",
+        "静态分析与 AST",
+        "实证研究方法"
+      ],
+      "reading_hint": "软件工程论文先看研究对象是谁、样本怎么来的，再看结论；很多争议来自样本选择。",
+      "papers": [
+        {
+          "title": "No Silver Bullet — Essence and Accident in Software Engineering",
+          "why": "区分本质困难与偶然困难，能帮你判断一个工具到底解决了什么。",
+          "level": "入门",
+          "note": "读完后对照今天的 AI 编程工具想一想。"
+        },
+        {
+          "title": "An Empirical Study of the Reliability of UNIX Utilities",
+          "why": "模糊测试的起点，也是「用数据说话」的样板。",
+          "level": "必读",
+          "note": "看它怎么定义崩溃、怎么采样。"
+        },
+        {
+          "title": "Dynamically Discovering Likely Program Invariants to Support Program Evolution",
+          "why": "从运行轨迹推不变式，理解程序分析的实证路线。",
+          "level": "进阶",
+          "note": "重点看它如何评估「发现的不变式有没有用」。"
+        }
+      ],
+      "stage_tasks": [
+        {
+          "id": "se.test",
+          "title": "测试与 CI",
+          "detail": "给一个真实项目补测试并接上持续集成。",
+          "acceptance": [
+            "覆盖率从低到有明显提升，并说明补了哪些边界",
+            "CI 能在 PR 上自动跑测试",
+            "故意引入一个 bug，确认测试能抓到"
+          ],
+          "hours": 10,
+          "concepts": [
+            "testing"
+          ]
+        },
+        {
+          "id": "se.refactor",
+          "title": "重构",
+          "detail": "在不改外部行为的前提下重构一个模块。",
+          "acceptance": [
+            "重构前后测试全绿",
+            "说清你消除了哪种重复或耦合",
+            "给出重构前后的复杂度或行数对比"
+          ],
+          "hours": 10,
+          "concepts": [
+            "refactoring"
+          ]
+        },
+        {
+          "id": "se.codebase",
+          "title": "读一个中型项目",
+          "detail": "画出模块图与关键调用链，找到入口。",
+          "acceptance": [
+            "画出模块依赖图并指出循环依赖",
+            "从一个用户操作追到最终落库/输出的调用链",
+            "找到一处你觉得会出问题的地方并说明理由"
+          ],
+          "hours": 12,
+          "concepts": [
+            "refactoring",
+            "readme"
+          ]
+        }
+      ],
+      "first_project": {
+        "id": "se.project",
+        "title": "给开源项目交一个可合并的改动",
+        "detail": "修 bug、补测试或加一个小特性，走完 PR 流程。",
+        "acceptance": [
+          "PR 通过 CI，有维护者回复（合并或提出修改意见）",
+          "改动附测试与说明",
+          "记录一次被拒绝或要求返工的原因"
+        ],
+        "hours": 20,
+        "concepts": [
+          "git-basic",
+          "testing",
+          "readme"
+        ]
+      }
+    },
+    {
+      "id": "graphics",
+      "name": "图形学与多媒体",
+      "why": "数学与工程结合紧密，结果可视化，反馈非常直观。",
+      "keywords": [
+        "图形学",
+        "渲染",
+        "光追",
+        "OpenGL",
+        "Vulkan",
+        "着色器",
+        "图像处理",
+        "几何处理",
+        "动画",
+        "三维重建",
+        "图形学方向",
+        "graphics"
+      ],
+      "dims": {
+        "math": 3,
+        "coding": 3,
+        "tools": 1
+      },
+      "skills": [
+        "线性代数与几何变换",
+        "C++ 与图形 API",
+        "渲染管线",
+        "图像处理"
+      ],
+      "reading_hint": "图形学论文先看它近似了哪个物理过程，再看误差与性能；公式背后通常是能量守恒。",
+      "papers": [
+        {
+          "title": "A Reflectance Model for Computer Graphics",
+          "why": "Cook-Torrance 模型，理解材质为什么长那样。",
+          "level": "入门",
+          "note": "先把 BRDF 的定义搞清。"
+        },
+        {
+          "title": "The Rendering Equation",
+          "why": "把渲染写成积分方程，是整门学科的统一语言。",
+          "level": "必读",
+          "note": "不必完全推导，理解各项含义即可。"
+        },
+        {
+          "title": "Light Field Rendering",
+          "why": "换一种表示方式来重建视角，理解「表示决定能力」。",
+          "level": "进阶",
+          "note": "配合手机拍的小样本试试重聚焦。"
+        }
+      ],
+      "stage_tasks": [
+        {
+          "id": "cg.transform",
+          "title": "变换与矩阵",
+          "detail": "模型、视图、投影矩阵，从零搭出旋转立方体。",
+          "acceptance": [
+            "手写 MVP 矩阵并解释每个矩阵在做什么",
+            "渲染出一个能旋转的立方体，无透视错误",
+            "说清为什么法线要用逆转置矩阵变换"
+          ],
+          "hours": 10,
+          "concepts": [
+            "transform-matrix"
+          ]
+        },
+        {
+          "id": "cg.pipeline",
+          "title": "渲染管线",
+          "detail": "实现 Lambert 光照与阴影，理解光栅化每一步。",
+          "acceptance": [
+            "实现 Lambert 光照，能看出明暗变化",
+            "加阴影贴图并解释阴影失真（acne / peter-panning）",
+            "说清顶点着色与片元着色各做什么"
+          ],
+          "hours": 14,
+          "concepts": [
+            "rendering-pipeline"
+          ]
+        },
+        {
+          "id": "cg.image",
+          "title": "图像处理",
+          "detail": "卷积、滤波、边缘检测，理解边界处理的影响。",
+          "acceptance": [
+            "手写卷积实现高斯模糊与 Sobel",
+            "对比不同边界填充方式的结果差异",
+            "给出耗时与核大小的关系"
+          ],
+          "hours": 8,
+          "concepts": [
+            "rendering-pipeline"
+          ]
+        }
+      ],
+      "first_project": {
+        "id": "cg.project",
+        "title": "写一个光线追踪器",
+        "detail": "支持球体、平面、阴影、反射与抗锯齿。",
+        "acceptance": [
+          "渲染出 512×512 以上的图，能看到阴影与反射",
+          "给出每帧耗时与加速前后的对比",
+          "说明你的实现省掉了哪些物理效应"
+        ],
+        "hours": 25,
+        "concepts": [
+          "rendering-pipeline",
+          "transform-matrix"
+        ]
+      }
+    },
+    {
+      "id": "ai",
+      "name": "人工智能",
+      "why": "数据与代码公开得多、上手快，但很容易停在「调 API」，需要刻意补数学与实验方法。",
+      "keywords": [
+        "人工智能",
+        "机器学习",
+        "深度学习",
+        "神经网络",
+        "CV",
+        "计算机视觉",
+        "NLP",
+        "自然语言",
+        "大模型",
+        "LLM",
+        "强化学习",
+        "推荐系统",
+        "ai",
+        "人工智能方向"
+      ],
+      "dims": {
+        "math": 2,
+        "ml": 2,
+        "dl": 2,
+        "coding": 2
+      },
+      "skills": [
+        "线代与概率",
+        "PyTorch",
+        "实验设计与评价指标",
+        "论文复现"
+      ],
+      "reading_hint": "AI 论文先看方法图与实验表：和谁比、在什么数据上、消融是否完整；结论常常只在特定设定下成立。",
+      "papers": [
+        {
+          "title": "Attention Is All You Need",
+          "why": "Transformer 的源头，读懂它就懂了现在大部分模型的骨架。",
+          "level": "必读",
+          "note": "建议手写一遍 self-attention 的矩阵运算。"
+        },
+        {
+          "title": "Deep Residual Learning for Image Recognition",
+          "why": "残差连接是所有现代网络的默认组件，代码量小、适合第一次完整复现。",
+          "level": "入门",
+          "note": "重点看它如何解决退化问题。"
+        },
+        {
+          "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+          "why": "预训练+微调范式的代表，理解「预训练到底学到了什么」。",
+          "level": "进阶",
+          "note": "用 HuggingFace 做一次微调即可。"
+        }
+      ],
+      "stage_tasks": [
+        {
+          "id": "ai.math",
+          "title": "数学与机器学习",
+          "detail": "线代、概率、梯度，加上一门完整的 ML 课与一次 sklearn 实践。",
+          "acceptance": [
+            "手推两层网络的梯度并与 torch 对拍",
+            "在真实小数据集上完成训练/验证/测试划分与混淆矩阵",
+            "故意过拟合再用正则化拉回来，并解释原因"
+          ],
+          "hours": 20,
+          "concepts": [
+            "gradient",
+            "overfitting",
+            "train-val-test"
+          ]
+        },
+        {
+          "id": "ai.train",
+          "title": "跑通一次完整训练",
+          "detail": "数据加载、前向、反向、评估，自己写循环而不是只调 API。",
+          "acceptance": [
+            "不依赖高层封装写出训练循环",
+            "解释 loss 曲线为什么先降后平",
+            "记录硬件、种子与超参"
+          ],
+          "hours": 14,
+          "concepts": [
+            "backprop",
+            "gradient-descent",
+            "random-seed"
+          ]
+        },
+        {
+          "id": "ai.tweak",
+          "title": "只改一处并解释",
+          "detail": "改学习率、batch size 或一个模块，观察指标怎么动。",
+          "acceptance": [
+            "只改一个变量，跑出对比结果",
+            "写出解释并给出一个替代解释",
+            "结果可被他人按记录重跑"
+          ],
+          "hours": 8,
+          "concepts": [
+            "learning-rate",
+            "batch-size",
+            "ablation"
+          ]
+        }
+      ],
+      "first_project": {
+        "id": "ai.project",
+        "title": "复现并改进一个小模型",
+        "detail": "选一个单卡能训完的工作，对上基线后做一处改动。",
+        "acceptance": [
+          "指标与论文差距 ≤3%，或写清差距来源",
+          "有一组消融实验支撑你的改动",
+          "三种子重复，报告均值与方差"
+        ],
+        "hours": 25,
+        "concepts": [
+          "reproducibility",
+          "baseline",
+          "variance"
+        ]
+      }
+    },
+    {
+      "id": "ai4science",
+      "name": "AI for Science",
+      "why": "交叉方向，问题真实、数据专业，需要愿意补领域知识而不只是调模型。",
+      "keywords": [
+        "AI4Science",
+        "科学计算",
+        "分子",
+        "蛋白",
+        "材料",
+        "生物信息",
+        "物理",
+        "化学",
+        "气象",
+        "仿真",
+        "AlphaFold"
+      ],
+      "dims": {
+        "math": 2,
+        "ml": 2,
+        "dl": 2,
+        "coding": 2
+      },
+      "skills": [
+        "科学数据格式（PDB / XYZ / NetCDF）",
+        "图神经网络与等变网络",
+        "领域评价指标",
+        "仿真与数值方法"
+      ],
+      "reading_hint": "AI4Science 论文先看领域指标怎么定义、数据怎么划分，再看模型；指标选错，结论就全错。",
+      "papers": [
+        {
+          "title": "Neural Message Passing for Quantum Chemistry",
+          "why": "图神经网络在分子上的经典应用，模型不大、适合第一次复现。",
+          "level": "入门",
+          "note": "重点看消息传递与图池化。"
+        },
+        {
+          "title": "Highly accurate protein structure prediction with AlphaFold",
+          "why": "AI4Science 的标志性工作，理解「结构预测」为什么难。",
+          "level": "必读",
+          "note": "代码与权重公开，但算力要求高，建议先跑小序列。"
+        },
+        {
+          "title": "Accurate structure prediction of biomolecular interactions with AlphaFold 3",
+          "why": "从单分子走向复合物，看评测方式怎么随之改变。",
+          "level": "进阶",
+          "note": "不必复现，重点是失败案例。"
+        }
+      ],
+      "stage_tasks": [
+        {
+          "id": "a4s.data",
+          "title": "读懂领域数据",
+          "detail": "选一个领域数据集，搞清格式、字段与划分方式。",
+          "acceptance": [
+            "用代码解析一个真实数据文件并可视化一条样本",
+            "说清训练/验证/测试是怎么划分的、有没有泄漏风险",
+            "指出该数据里最容易被误用的字段"
+          ],
+          "hours": 10,
+          "concepts": [
+            "train-val-test"
+          ]
+        },
+        {
+          "id": "a4s.gnn",
+          "title": "跑通一个领域模型",
+          "detail": "图神经网络或等变网络，在公开数据集上训练并评估。",
+          "acceptance": [
+            "跑通训练并在测试集上给出指标",
+            "与论文报告的数字对比，解释差距",
+            "画出一次预测错误的样本并分析原因"
+          ],
+          "hours": 16,
+          "concepts": [
+            "baseline",
+            "random-seed"
+          ]
+        },
+        {
+          "id": "a4s.metric",
+          "title": "用领域指标评估",
+          "detail": "不用通用指标，改用领域认可的指标。",
+          "acceptance": [
+            "说清该领域为什么不用准确率",
+            "用领域指标复算你的结果",
+            "指出一个指标会漏掉的失败模式"
+          ],
+          "hours": 8,
+          "concepts": [
+            "metric"
+          ]
+        }
+      ],
+      "first_project": {
+        "id": "a4s.project",
+        "title": "复现一个分子或材料性质预测模型",
+        "detail": "在公开数据集上复现，并用领域指标评估。",
+        "acceptance": [
+          "结果与论文同量级，或写清差距来源",
+          "有至少一次消融",
+          "报告里说明领域专家会关心的失败案例"
+        ],
+        "hours": 25,
+        "concepts": [
+          "reproducibility",
+          "ablation"
+        ]
+      }
+    }
+  ]
+}

@@ -1,461 +1,1185 @@
 {
-  "version": 1,
-  "note": "概念卡。一条概念固定五段：一句话 / 类比 / 常见误解 / 前置 / 下一步；check 是自检问题。 概念库是唯一事实来源，检索不到就说没有，不用模型自由生成。",
+  "version": 2,
+  "note": "概念库。dimension 对应 spec.Dimension；prereq/next 只引用本文件里的 id。查不到就说没有，不用模型现编。",
   "concepts": [
     {
       "id": "shell-basic",
       "name": "终端基本功",
-      "aliases": ["命令行", "shell", "bash", "终端", "命令行基础"],
-      "dimension": "shell",
+      "aliases": [
+        "命令行",
+        "shell",
+        "bash",
+        "终端",
+        "命令行基础"
+      ],
+      "dimension": "tools",
       "stage": "stage0",
       "one_liner": "用文字命令操作文件、进程和网络，而不是点鼠标。",
       "analogy": "图形界面是菜单，终端是直接跟服务员说要什么——快，但你得知道菜名。",
       "misconception": "「命令行是黑客用的」。其实跑实验、装环境、看日志，绕不开它。",
-      "prereq": ["path"],
-      "next": ["ssh", "tmux"],
+      "prereq": [
+        "path"
+      ],
+      "next": [
+        "ssh",
+        "tmux"
+      ],
       "check": "不看教程，你能把当前目录下所有 .log 文件移到 logs/ 并统计每个文件有多少行吗？"
     },
     {
       "id": "path",
       "name": "PATH 与环境变量",
-      "aliases": ["PATH", "环境变量", "path 变量"],
-      "dimension": "shell",
+      "aliases": [
+        "PATH",
+        "环境变量",
+        "path 变量"
+      ],
+      "dimension": "tools",
       "stage": "stage0",
       "one_liner": "系统按 PATH 里列出的目录顺序找可执行文件，找不到就报 command not found。",
       "analogy": "像通讯录：你打「张三」，系统按顺序翻几个电话本，翻完没有就说查无此人。",
       "misconception": "「装了就有命令」。装进某个目录 ≠ 这个目录在 PATH 里。",
-      "prereq": ["shell-basic"],
-      "next": ["venv"],
+      "prereq": [
+        "shell-basic"
+      ],
+      "next": [
+        "venv"
+      ],
       "check": "装了一个工具但提示找不到命令，你能说出用 which/where 排查的两步吗？"
     },
     {
       "id": "venv",
       "name": "虚拟环境",
-      "aliases": ["venv", "virtualenv", "conda 环境", "环境隔离", "虚拟环境是什么"],
-      "dimension": "python",
+      "aliases": [
+        "venv",
+        "virtualenv",
+        "conda 环境",
+        "环境隔离",
+        "虚拟环境是什么"
+      ],
+      "dimension": "coding",
       "stage": "stage0",
       "one_liner": "每个项目一套独立的 Python 解释器和包，互不污染。",
       "analogy": "像每个项目一个独立工具箱，而不是全楼共用一个，免得 A 项目的锤子砸了 B 项目。",
       "misconception": "「用 conda 就不用 venv」。关键是隔离，不是工具名；混着用最容易把 base 环境搞乱。",
-      "prereq": ["path"],
-      "next": ["pip-mirror", "cuda"],
+      "prereq": [
+        "path"
+      ],
+      "next": [
+        "pip-mirror",
+        "cuda"
+      ],
       "check": "你能从零建一个环境、装一个包、导出依赖，并在另一台机器上复现吗？"
     },
     {
       "id": "pip-mirror",
       "name": "包安装与镜像源",
-      "aliases": ["pip", "镜像源", "pip install", "依赖冲突", "requirements.txt"],
-      "dimension": "python",
+      "aliases": [
+        "pip",
+        "镜像源",
+        "pip install",
+        "依赖冲突",
+        "requirements.txt"
+      ],
+      "dimension": "coding",
       "stage": "stage0",
       "one_liner": "pip 按版本约束解析依赖；国内默认源慢，通常换成清华或阿里镜像。",
       "analogy": "装包像网购，官方仓库在国外，镜像源是同城仓，货一样但快得多。",
       "misconception": "「报错就是包不存在」。多数是版本冲突或网络不通，先看报错里最后一个真实错误。",
-      "prereq": ["venv"],
-      "next": ["reproducibility"],
+      "prereq": [
+        "venv"
+      ],
+      "next": [
+        "reproducibility"
+      ],
       "check": "requirements.txt 装失败时，你能分辨是网络问题、版本冲突还是编译依赖缺失吗？"
     },
     {
       "id": "git-basic",
       "name": "Git 与版本控制",
-      "aliases": ["git", "commit", "提交", "分支", "diff", "github", "版本控制"],
-      "dimension": "shell",
+      "aliases": [
+        "git",
+        "commit",
+        "提交",
+        "分支",
+        "diff",
+        "github",
+        "版本控制"
+      ],
+      "dimension": "tools",
       "stage": "stage0",
       "one_liner": "Git 把文件的每次变化记成一次提交，能随时回退、对比、分叉。",
       "analogy": "像游戏存档：每打完一关存一次，打坏了读档，还能开分支试不同打法。",
       "misconception": "「git 就是网盘」。它的价值在历史和分支，不在备份。",
-      "prereq": ["shell-basic"],
-      "next": ["reproducibility", "readme"],
+      "prereq": [
+        "shell-basic"
+      ],
+      "next": [
+        "reproducibility",
+        "readme"
+      ],
       "check": "你能用 git log 和 git diff 定位「哪次提交引入了这个 bug」吗？"
     },
     {
       "id": "ssh",
       "name": "SSH 与远程机器",
-      "aliases": ["ssh", "远程登录", "免密登录", "scp", "服务器"],
-      "dimension": "shell",
+      "aliases": [
+        "ssh",
+        "远程登录",
+        "免密登录",
+        "scp",
+        "服务器"
+      ],
+      "dimension": "tools",
       "stage": "stage0",
       "one_liner": "SSH 让你在自己的终端里操作另一台机器，密钥认证比密码更安全。",
       "analogy": "像给远方的房间配一把钥匙，配好之后不用每次报暗号。",
       "misconception": "「连接超时就是密码错」。多半是网络、端口或防火墙。",
-      "prereq": ["shell-basic", "path"],
-      "next": ["tmux"],
+      "prereq": [
+        "shell-basic",
+        "path"
+      ],
+      "next": [
+        "tmux"
+      ],
       "check": "你能配好免密登录，并把本地代码同步到服务器上跑起来吗？"
     },
     {
       "id": "tmux",
       "name": "tmux 与会话保持",
-      "aliases": ["tmux", "screen", "后台运行", "nohup", "会话"],
-      "dimension": "shell",
+      "aliases": [
+        "tmux",
+        "screen",
+        "后台运行",
+        "nohup",
+        "会话"
+      ],
+      "dimension": "tools",
       "stage": "stage0",
       "one_liner": "tmux 让远程会话在断开连接后继续运行，训练不会因为掉线中断。",
       "analogy": "像把电视节目录下来，人走了节目还在播。",
       "misconception": "「关掉终端训练还在跑」。没有 tmux/nohup，进程会跟着会话一起结束。",
-      "prereq": ["ssh"],
-      "next": ["cuda"],
+      "prereq": [
+        "ssh"
+      ],
+      "next": [
+        "cuda"
+      ],
       "check": "断网重连后，你能把之前那个还在跑的训练会话找回来吗？"
     },
     {
       "id": "matrix",
       "name": "矩阵与张量",
-      "aliases": ["矩阵", "张量", "tensor", "矩阵乘法", "维度", "shape"],
+      "aliases": [
+        "矩阵",
+        "张量",
+        "tensor",
+        "矩阵乘法",
+        "维度",
+        "shape"
+      ],
       "dimension": "math",
       "stage": "stage1",
       "one_liner": "矩阵是线性变换的表格表示，张量是它的高维推广；形状对不上是最常见的报错来源。",
       "analogy": "矩阵乘法像流水线对接：前一道工序的输出宽度，必须等于后一道的输入宽度。",
       "misconception": "「shape 只是细节」。绝大多数维度报错，根因是没想清楚这一层该输入什么。",
       "prereq": [],
-      "next": ["gradient", "backprop"],
+      "next": [
+        "gradient",
+        "backprop"
+      ],
       "check": "给定 (B, T, D) 的输入和 (D, H) 的权重，你能说出输出形状和每一维的含义吗？"
     },
     {
       "id": "gradient",
       "name": "梯度",
-      "aliases": ["梯度", "gradient", "偏导", "求导", "方向导数"],
+      "aliases": [
+        "梯度",
+        "gradient",
+        "偏导",
+        "求导",
+        "方向导数"
+      ],
       "dimension": "math",
       "stage": "stage1",
       "one_liner": "梯度是函数上升最快的方向，负梯度就是下降最快的方向。",
       "analogy": "站在山坡上，梯度指向最陡的上坡，往反方向走就是下山。",
       "misconception": "「梯度下降一定找到最优」。非凸问题里它只保证局部下降。",
-      "prereq": ["matrix"],
-      "next": ["gradient-descent", "backprop"],
+      "prereq": [
+        "matrix"
+      ],
+      "next": [
+        "gradient-descent",
+        "backprop"
+      ],
       "check": "你能解释为什么参数更新写成 w = w - lr * grad 吗？"
     },
     {
       "id": "probability",
       "name": "概率与期望",
-      "aliases": ["概率", "条件概率", "期望", "方差", "分布"],
+      "aliases": [
+        "概率",
+        "条件概率",
+        "期望",
+        "方差",
+        "分布"
+      ],
       "dimension": "math",
       "stage": "stage1",
       "one_liner": "条件概率描述「已知一件事后另一件事的可能」，期望是长期平均，方差是波动大小。",
       "analogy": "期望像掷一万次骰子的平均点数，方差像每次偏离平均的程度。",
       "misconception": "「准确率高就是模型好」。类别不平衡时，全猜多数类也能很高。",
       "prereq": [],
-      "next": ["metric", "variance"],
+      "next": [
+        "metric",
+        "variance"
+      ],
       "check": "数据里 95% 是负类，一个全猜负类的模型准确率是多少？它有用吗？"
     },
     {
       "id": "metric",
       "name": "分类评价指标",
-      "aliases": ["准确率", "精确率", "召回率", "F1", "AUC", "混淆矩阵", "评价指标"],
+      "aliases": [
+        "准确率",
+        "精确率",
+        "召回率",
+        "F1",
+        "AUC",
+        "混淆矩阵",
+        "评价指标"
+      ],
       "dimension": "ml",
       "stage": "stage1",
       "one_liner": "精确率看「报的准不准」，召回率看「该报的有没有漏」，F1 是两者的调和平均。",
       "analogy": "抓小偷：精确率是抓的人里真小偷的比例，召回率是所有小偷里被抓到的比例。",
       "misconception": "「一个指标够了」。指标要跟业务代价对齐，少报和多报的代价往往不同。",
-      "prereq": ["probability"],
-      "next": ["cross-validation", "baseline"],
+      "prereq": [
+        "probability"
+      ],
+      "next": [
+        "cross-validation",
+        "baseline"
+      ],
       "check": "你能根据一个场景（比如疾病筛查）说明该优先精确率还是召回率吗？"
     },
     {
       "id": "overfitting",
       "name": "过拟合",
-      "aliases": ["过拟合", "泛化", "欠拟合", "偏差方差"],
+      "aliases": [
+        "过拟合",
+        "泛化",
+        "欠拟合",
+        "偏差方差"
+      ],
       "dimension": "ml",
       "stage": "stage1",
       "one_liner": "训练集上很好、新数据上很差，说明模型记住了噪声而不是规律。",
       "analogy": "背题库答案的学生，原题满分，换个数字就懵。",
       "misconception": "「训练 loss 越低越好」。要看验证集，训练集 loss 只说明拟合能力。",
-      "prereq": ["train-val-test"],
-      "next": ["regularization"],
+      "prereq": [
+        "train-val-test"
+      ],
+      "next": [
+        "regularization"
+      ],
       "check": "训练 loss 一路降、验证 loss 先降后升，你会怎么处理？"
     },
     {
       "id": "regularization",
       "name": "正则化",
-      "aliases": ["正则化", "L2", "weight decay", "dropout", "早停"],
+      "aliases": [
+        "正则化",
+        "L2",
+        "weight decay",
+        "dropout",
+        "早停"
+      ],
       "dimension": "ml",
       "stage": "stage1",
       "one_liner": "给模型加约束，让它别把训练集背下来：权重衰减、dropout、早停都算。",
       "analogy": "给答题加一条「解释必须简单」的要求，防止死记硬背。",
       "misconception": "「正则化总是有用」。约束太强会欠拟合，需要看验证集调。",
-      "prereq": ["overfitting"],
-      "next": ["ablation"],
+      "prereq": [
+        "overfitting"
+      ],
+      "next": [
+        "ablation"
+      ],
       "check": "你能说清 weight decay 和 dropout 分别在限制什么吗？"
     },
     {
       "id": "train-val-test",
       "name": "训练/验证/测试集",
-      "aliases": ["训练集", "验证集", "测试集", "数据划分", "验证集是什么"],
+      "aliases": [
+        "训练集",
+        "验证集",
+        "测试集",
+        "数据划分",
+        "验证集是什么"
+      ],
       "dimension": "ml",
       "stage": "stage1",
       "one_liner": "训练集学参数，验证集选超参，测试集只用来最后报一次结果。",
       "analogy": "训练集是练习册，验证集是模拟考，测试集是高考——高考不能拿来反复调。",
       "misconception": "「用测试集调参没关系」。一旦反复看测试集，它就变成了验证集，报出的数字会偏乐观。",
       "prereq": [],
-      "next": ["overfitting", "cross-validation"],
+      "next": [
+        "overfitting",
+        "cross-validation"
+      ],
       "check": "你调了 20 次超参都看同一个测试集，这个测试结果还可信吗？为什么？"
     },
     {
       "id": "cross-validation",
       "name": "交叉验证",
-      "aliases": ["交叉验证", "K 折", "k-fold", "cv"],
+      "aliases": [
+        "交叉验证",
+        "K 折",
+        "k-fold",
+        "cv"
+      ],
       "dimension": "ml",
       "stage": "stage1",
       "one_liner": "把数据切成 K 份，轮流留一份做验证，用来估计模型在未见数据上的表现。",
       "analogy": "把一套卷子分成 K 份，每次拿一份当模拟考，最后取平均，比只考一次稳。",
       "misconception": "「交叉验证能替代测试集」。它仍然是在同一批数据上反复选择，最终还是要留出独立测试集。",
-      "prereq": ["train-val-test"],
-      "next": ["variance"],
+      "prereq": [
+        "train-val-test"
+      ],
+      "next": [
+        "variance"
+      ],
       "check": "小数据集（几百条）为什么更该用交叉验证？"
     },
     {
       "id": "backprop",
       "name": "反向传播",
-      "aliases": ["反向传播", "backprop", "BP", "链式法则"],
+      "aliases": [
+        "反向传播",
+        "backprop",
+        "BP",
+        "链式法则"
+      ],
       "dimension": "dl",
       "stage": "stage1",
       "one_liner": "从损失往回，用链式法则逐层算每个参数的梯度，复用中间结果避免重复计算。",
       "analogy": "像复盘一道错题：从最终扣分往回追，每一步错在哪，责任按比例分给前面的环节。",
       "misconception": "「反向传播是优化算法」。它只负责算梯度，怎么用梯度更新是优化器的事。",
-      "prereq": ["gradient", "matrix"],
-      "next": ["gradient-descent", "loss"],
+      "prereq": [
+        "gradient",
+        "matrix"
+      ],
+      "next": [
+        "gradient-descent",
+        "loss"
+      ],
       "check": "两层网络里，你能手推出 ∂L/∂W1 要经过哪几次相乘吗？"
     },
     {
       "id": "gradient-descent",
       "name": "梯度下降",
-      "aliases": ["梯度下降", "SGD", "Adam", "优化器", "优化算法"],
+      "aliases": [
+        "梯度下降",
+        "SGD",
+        "Adam",
+        "优化器",
+        "优化算法"
+      ],
       "dimension": "dl",
       "stage": "stage1",
       "one_liner": "沿负梯度方向小步更新参数，步子大小由学习率决定。",
       "analogy": "蒙眼下山：用脚试坡度，朝最陡的下坡迈一小步，反复走。",
       "misconception": "「Adam 一定比 SGD 好」。任务与数据规模不同结论不同，论文里的选择要跟着实验看。",
-      "prereq": ["gradient"],
-      "next": ["learning-rate"],
+      "prereq": [
+        "gradient"
+      ],
+      "next": [
+        "learning-rate"
+      ],
       "check": "训练 loss 剧烈震荡，你会先怀疑哪个超参？"
     },
     {
       "id": "loss",
       "name": "损失函数",
-      "aliases": ["损失函数", "loss", "交叉熵", "MSE", "目标函数"],
+      "aliases": [
+        "损失函数",
+        "loss",
+        "交叉熵",
+        "MSE",
+        "目标函数"
+      ],
       "dimension": "dl",
       "stage": "stage1",
       "one_liner": "把「预测有多错」变成一个数，训练就是让这个数变小。",
       "analogy": "像考试的扣分规则：规则不同，学生就会朝不同的方向努力。",
       "misconception": "「loss 低就等于任务做得好」。loss 只是代理指标，和最终业务指标可能不一致。",
-      "prereq": ["probability"],
-      "next": ["backprop"],
+      "prereq": [
+        "probability"
+      ],
+      "next": [
+        "backprop"
+      ],
       "check": "分类任务为什么常用交叉熵而不是 MSE？"
     },
     {
       "id": "learning-rate",
       "name": "学习率",
-      "aliases": ["学习率", "lr", "learning rate", "步长"],
+      "aliases": [
+        "学习率",
+        "lr",
+        "learning rate",
+        "步长"
+      ],
       "dimension": "dl",
       "stage": "stage2",
       "one_liner": "每次更新走多远；太大发散，太小慢到看不出变化。",
       "analogy": "下山时一步跨多大：跨太大可能冲过山谷，跨太小天黑都到不了。",
       "misconception": "「学习率调小总没错」。太小会让你误以为模型学不动，其实是没走几步。",
-      "prereq": ["gradient-descent"],
-      "next": ["ablation"],
+      "prereq": [
+        "gradient-descent"
+      ],
+      "next": [
+        "ablation"
+      ],
       "check": "loss 前几步就变成 nan，你先查学习率还是数据？为什么？"
     },
     {
       "id": "batch-size",
       "name": "batch size",
-      "aliases": ["batch size", "批大小", "batch", "显存不足", "OOM"],
+      "aliases": [
+        "batch size",
+        "批大小",
+        "batch",
+        "显存不足",
+        "OOM"
+      ],
       "dimension": "dl",
       "stage": "stage2",
       "one_liner": "一次喂多少样本再更新一次参数；它同时影响显存、速度和梯度噪声。",
       "analogy": "像一次搬多少砖：一次搬多省往返，但车装不下就得减量。",
       "misconception": "「batch 越大越准」。大 batch 常需要配合调学习率，否则效果反而差。",
-      "prereq": ["gradient-descent"],
-      "next": ["ablation"],
+      "prereq": [
+        "gradient-descent"
+      ],
+      "next": [
+        "ablation"
+      ],
       "check": "显存不够时，除了调小 batch，你还能说出两种办法吗？"
     },
     {
       "id": "random-seed",
       "name": "随机种子",
-      "aliases": ["随机种子", "seed", "可复现", "复现结果不一致"],
+      "aliases": [
+        "随机种子",
+        "seed",
+        "可复现",
+        "复现结果不一致"
+      ],
       "dimension": "dl",
       "stage": "stage2",
       "one_liner": "固定初始化、数据打乱、dropout 的随机源，才谈得上复现同一次实验。",
       "analogy": "像洗牌的起始顺序，记下来才能重洗出同一副牌。",
       "misconception": "「设了 seed 结果就一定一样」。多卡、非确定性算子、不同硬件仍可能带来差异。",
-      "prereq": ["reproducibility"],
-      "next": ["variance"],
+      "prereq": [
+        "reproducibility"
+      ],
+      "next": [
+        "variance"
+      ],
       "check": "同一份代码两次跑出不同指标，你会先查哪三件事？"
     },
     {
       "id": "cuda",
       "name": "CUDA 与驱动",
-      "aliases": ["cuda", "显卡驱动", "nvidia-smi", "GPU", "显存", "torch.cuda"],
+      "aliases": [
+        "cuda",
+        "显卡驱动",
+        "nvidia-smi",
+        "GPU",
+        "显存",
+        "torch.cuda"
+      ],
       "dimension": "dl",
       "stage": "stage0",
       "one_liner": "驱动决定能装多新的 CUDA，CUDA 决定能用哪个版本的框架，三者版本要能对上。",
       "analogy": "像插座、插头、电器：插座（驱动）定标准，插头（CUDA）要匹配，电器（torch）才能通电。",
       "misconception": "「torch.cuda.is_available() 是 False 就是没显卡」。多数是版本不匹配或装了 CPU 版。",
-      "prereq": ["venv"],
-      "next": ["reproducibility"],
+      "prereq": [
+        "venv"
+      ],
+      "next": [
+        "reproducibility"
+      ],
       "check": "nvidia-smi 显示的 CUDA 版本和 torch.version.cuda 不一样，正常吗？为什么？"
     },
     {
       "id": "reproducibility",
       "name": "可复现性",
-      "aliases": ["复现", "可复现", "reproduce", "复现不了"],
+      "aliases": [
+        "复现",
+        "可复现",
+        "reproduce",
+        "复现不了"
+      ],
       "dimension": "research",
       "stage": "stage2",
       "one_liner": "别人按你写的东西能跑出同一个量级的结果，才算复现；差多少、为什么差，也要写。",
       "analogy": "像菜谱：材料、火候、步骤都写清，换个人也能做出接近的味道。",
       "misconception": "「跑通就是复现」。跑通只说明代码能执行，对上数字才说明方法成立。",
-      "prereq": ["venv", "git-basic"],
-      "next": ["baseline", "random-seed"],
+      "prereq": [
+        "venv",
+        "git-basic"
+      ],
+      "next": [
+        "baseline",
+        "random-seed"
+      ],
       "check": "你复现的结果比论文低 5%，报告里应该写哪几项？"
     },
     {
       "id": "baseline",
       "name": "基线",
-      "aliases": ["baseline", "基线", "对照组", "SOTA"],
+      "aliases": [
+        "baseline",
+        "基线",
+        "对照组",
+        "SOTA"
+      ],
       "dimension": "research",
       "stage": "stage2",
       "one_liner": "你要比较的对象：最简单的合理方法，或论文给出的原始结果。",
       "analogy": "像体检报告里的参考值，没有它，好坏无从判断。",
       "misconception": "「比 baseline 高就是有贡献」。提升可能来自更多参数、更长训练，需要消融才能说清。",
-      "prereq": ["reproducibility"],
-      "next": ["ablation"],
+      "prereq": [
+        "reproducibility"
+      ],
+      "next": [
+        "ablation"
+      ],
       "check": "你的方法比 baseline 高 1 个点，怎么证明是这个改动带来的？"
     },
     {
       "id": "ablation",
       "name": "消融实验",
-      "aliases": ["消融", "ablation", "消融实验", "对比实验"],
+      "aliases": [
+        "消融",
+        "ablation",
+        "消融实验",
+        "对比实验"
+      ],
       "dimension": "research",
       "stage": "stage5",
       "one_liner": "把改动拆开，每次去掉一个部分，看指标掉多少，判断哪部分真有用。",
       "analogy": "像拆机器找异响：一次只拆一个零件，才知道声音从哪来。",
       "misconception": "「消融就是多跑几组」。没有事前假设的消融，只是堆结果。",
-      "prereq": ["baseline"],
-      "next": ["variance"],
+      "prereq": [
+        "baseline"
+      ],
+      "next": [
+        "variance"
+      ],
       "check": "你有三个改动，怎么做消融才能把各自贡献区分开？"
     },
     {
       "id": "experiment-log",
       "name": "实验记录",
-      "aliases": ["实验记录", "实验日志", "记录实验", "日志"],
+      "aliases": [
+        "实验记录",
+        "实验日志",
+        "记录实验",
+        "日志"
+      ],
       "dimension": "research",
       "stage": "stage2",
       "one_liner": "一行一次实验：命令、超参、指标、结论；目标是三个月后自己还看得懂。",
       "analogy": "像病历：症状、用药、反应都记下来，下次才知道哪种药有效。",
       "misconception": "「我记得住」。一周后你只会记得「好像跑过」。",
       "prereq": [],
-      "next": ["ablation", "report"],
+      "next": [
+        "ablation",
+        "report"
+      ],
       "check": "别人拿你的记录，能在不看代码的情况下重跑同一次实验吗？"
     },
     {
       "id": "survey",
       "name": "综述",
-      "aliases": ["综述", "survey", "review", "文献综述"],
+      "aliases": [
+        "综述",
+        "survey",
+        "review",
+        "文献综述"
+      ],
       "dimension": "research",
       "stage": "stage3",
       "one_liner": "综述把领域的问题、方法族和代表工作串成一张地图，用来决定读什么。",
       "analogy": "像先看城市地图再决定去哪，比一条街一条街乱走快。",
       "misconception": "「综述不用认真读」。它最大的价值就是省时间，读法应该是跳读加画图。",
-      "prereq": ["three-pass"],
-      "next": ["sota"],
+      "prereq": [
+        "three-pass"
+      ],
+      "next": [
+        "sota"
+      ],
       "check": "读完一篇综述，你能画出三条方法脉络并指出各自的代表工作吗？"
     },
     {
       "id": "three-pass",
       "name": "三遍读法",
-      "aliases": ["三遍读法", "三遍", "怎么读论文", "读论文方法"],
+      "aliases": [
+        "三遍读法",
+        "三遍",
+        "怎么读论文",
+        "读论文方法"
+      ],
       "dimension": "research",
       "stage": "stage3",
       "one_liner": "第一遍看骨架（5 分钟），第二遍看方法与实验（30 分钟），第三遍抠细节（2 小时）。",
       "analogy": "像看房：先看地段，再看户型，最后才量尺寸。",
       "misconception": "「论文要从头读到尾」。多数论文读第一遍就该判断值不值得读第二遍。",
       "prereq": [],
-      "next": ["survey", "sota"],
+      "next": [
+        "survey",
+        "sota"
+      ],
       "check": "给你一篇陌生论文，5 分钟内你能说出它解决什么问题、结论是什么吗？"
     },
     {
       "id": "sota",
       "name": "SOTA 与 benchmark",
-      "aliases": ["SOTA", "benchmark", "基准", "排行榜", "state of the art"],
+      "aliases": [
+        "SOTA",
+        "benchmark",
+        "基准",
+        "排行榜",
+        "state of the art"
+      ],
       "dimension": "research",
       "stage": "stage3",
       "one_liner": "SOTA 是某基准上的当前最好结果，benchmark 是大家共用的赛道和评分规则。",
       "analogy": "像运动会的纪录和项目：换项目纪录就没法比。",
       "misconception": "「SOTA 就是更好」。榜单分数常靠调参和更大模型，换个数据分布可能就不行。",
-      "prereq": ["metric"],
-      "next": ["ablation"],
+      "prereq": [
+        "metric"
+      ],
+      "next": [
+        "ablation"
+      ],
       "check": "两篇论文都声称 SOTA，你怎么判断谁更强？"
     },
     {
       "id": "variance",
       "name": "方差与显著性",
-      "aliases": ["方差", "波动", "显著性", "多种子", "标准差"],
+      "aliases": [
+        "方差",
+        "波动",
+        "显著性",
+        "多种子",
+        "标准差"
+      ],
       "dimension": "research",
       "stage": "stage5",
       "one_liner": "同一实验多次运行的指标波动；提升小于波动时，不能说自己更好。",
       "analogy": "像体重秤的误差：今天轻了 0.1 公斤，可能只是秤不准。",
       "misconception": "「跑一次就够」。深度学习里种子带来的波动常常大于方法改进。",
-      "prereq": ["random-seed"],
-      "next": ["ablation"],
+      "prereq": [
+        "random-seed"
+      ],
+      "next": [
+        "ablation"
+      ],
       "check": "你的提升 0.8 个点，三个种子的标准差 1.2 个点，这个结论成立吗？"
     },
     {
       "id": "report",
       "name": "复现/实验报告",
-      "aliases": ["报告", "复现报告", "写报告", "技术报告"],
+      "aliases": [
+        "报告",
+        "复现报告",
+        "写报告",
+        "技术报告"
+      ],
       "dimension": "research",
       "stage": "stage6",
       "one_liner": "方法、实验设置、结果对比、差异分析、局限，五段说清一件事。",
       "analogy": "像给医生写病历：做了什么、结果如何、有什么异常，别人能接着处理。",
       "misconception": "「报告只写成功的结果」。失败尝试和差异分析才是最有信息量的部分。",
-      "prereq": ["experiment-log"],
-      "next": ["limitation", "presentation"],
+      "prereq": [
+        "experiment-log"
+      ],
+      "next": [
+        "limitation",
+        "presentation"
+      ],
       "check": "你的报告能让陌生人判断「这个结果可信不可信」吗？"
     },
     {
       "id": "limitation",
       "name": "局限分析",
-      "aliases": ["局限", "limitation", "不足", "失败案例"],
+      "aliases": [
+        "局限",
+        "limitation",
+        "不足",
+        "失败案例"
+      ],
       "dimension": "research",
       "stage": "stage6",
       "one_liner": "明确写出方法在什么条件下不成立、哪些结论没有证据支撑。",
       "analogy": "像药品说明书上的禁忌症：不写，别人就会用错。",
       "misconception": "「写局限会显得工作不好」。不写才会让人怀疑结论。",
-      "prereq": ["report"],
+      "prereq": [
+        "report"
+      ],
       "next": [],
       "check": "你能为自己的结果列出至少两条「换什么条件就失效」吗？"
     },
     {
       "id": "readme",
       "name": "README 与仓库",
-      "aliases": ["readme", "仓库", "开源", "项目文档"],
+      "aliases": [
+        "readme",
+        "仓库",
+        "开源",
+        "项目文档"
+      ],
       "dimension": "research",
       "stage": "stage6",
       "one_liner": "README 的唯一标准：陌生人照着能在十分钟内跑通。",
       "analogy": "像家具的安装说明，少一步就装不起来。",
       "misconception": "「代码能跑就行」。别人跑不起来，代码等于不存在。",
-      "prereq": ["git-basic"],
-      "next": ["docker"],
+      "prereq": [
+        "git-basic"
+      ],
+      "next": [
+        "docker"
+      ],
       "check": "把仓库发给一个没参与的同学，他能独立跑通吗？"
     },
     {
       "id": "docker",
       "name": "容器与 Docker",
-      "aliases": ["docker", "容器", "镜像", "环境固化"],
-      "dimension": "shell",
+      "aliases": [
+        "docker",
+        "容器",
+        "镜像",
+        "环境固化"
+      ],
+      "dimension": "tools",
       "stage": "stage6",
       "one_liner": "把代码、依赖、系统环境打包成镜像，换机器也能一致运行。",
       "analogy": "像把整套厨房连锅带灶一起搬走，而不是只带菜谱。",
       "misconception": "「docker 能解决所有环境问题」。GPU 驱动仍需宿主机支持。",
-      "prereq": ["readme"],
+      "prereq": [
+        "readme"
+      ],
       "next": [],
       "check": "你的项目在别人机器上装不上包，Dockerfile 能怎么帮你？"
     },
     {
       "id": "presentation",
       "name": "学术表达与分享",
-      "aliases": ["组会", "汇报", "presentation", "讲论文", "分享"],
+      "aliases": [
+        "组会",
+        "汇报",
+        "presentation",
+        "讲论文",
+        "分享"
+      ],
       "dimension": "research",
       "stage": "stage6",
       "one_liner": "先讲问题和结论，再讲怎么做的；听众记住的永远是前两分钟。",
       "analogy": "像新闻的倒金字塔：最重要的一句话放最前面。",
       "misconception": "「讲得越多越显专业」。信息过载时，听众什么也记不住。",
-      "prereq": ["report"],
+      "prereq": [
+        "report"
+      ],
       "next": [],
       "check": "你能用一句话说清自己的工作，并让外行听懂它为什么重要吗？"
+    },
+    {
+      "id": "debugging",
+      "name": "调试",
+      "aliases": [
+        "debug",
+        "断点",
+        "报错",
+        "排查错误",
+        "定位 bug"
+      ],
+      "dimension": "coding",
+      "stage": "stage0",
+      "one_liner": "用报错信息、断点和二分，把「哪里错了」缩到一个具体位置。",
+      "analogy": "像找水管漏水：先确定是哪个房间，再拆一段管，不是把整栋楼拆了。",
+      "misconception": "「调试靠猜」。其实靠的是缩小范围：每次尝试都应该排除掉一半可能。",
+      "prereq": [
+        "shell-basic"
+      ],
+      "next": [
+        "testing"
+      ],
+      "check": "给你一段报错和一个陌生脚本，你能说出下一句要打印什么、为什么是它吗？"
+    },
+    {
+      "id": "memory-model",
+      "name": "内存模型",
+      "aliases": [
+        "指针",
+        "栈和堆",
+        "内存布局",
+        "malloc",
+        "内存分配"
+      ],
+      "dimension": "systems",
+      "stage": "stage1",
+      "one_liner": "程序看到的地址是假的：栈放局部变量，堆放手动申请的内存，越界就是踩到别人的地盘。",
+      "analogy": "栈像餐桌上随手放的碗，吃完自动收走；堆像仓库，你得自己登记、自己归还。",
+      "misconception": "「C 会自动管好内存」。不会。忘了 free 就是泄漏，写越界就是改坏别人的数据。",
+      "prereq": [],
+      "next": [
+        "concurrency",
+        "buffer-overflow"
+      ],
+      "check": "你能说出一个局部数组和一次 malloc 分别存在哪、什么时候失效吗？"
+    },
+    {
+      "id": "concurrency",
+      "name": "并发与锁",
+      "aliases": [
+        "多线程",
+        "线程",
+        "锁",
+        "死锁",
+        "数据竞争",
+        "条件变量"
+      ],
+      "dimension": "systems",
+      "stage": "stage1",
+      "one_liner": "多个执行流同时改同一份数据，不加约束就会互相覆盖；加锁能修好，但锁的顺序不当就会死锁。",
+      "analogy": "两个人共用一本账本，一个人写的时候另一个人得等，否则字会叠在一起。",
+      "misconception": "「加了锁就安全」。锁只保护被它包住的那段代码，忘记保护的地方照样出错。",
+      "prereq": [
+        "memory-model"
+      ],
+      "next": [
+        "profiler"
+      ],
+      "check": "两个线程各持一把锁再去要对方的锁，你能画出它们的等待关系吗？"
+    },
+    {
+      "id": "profiler",
+      "name": "性能剖析",
+      "aliases": [
+        "perf",
+        "火焰图",
+        "性能分析",
+        "热点",
+        "profiling"
+      ],
+      "dimension": "systems",
+      "stage": "stage1",
+      "one_liner": "不靠感觉优化：先测出时间花在哪个函数，再决定动哪里。",
+      "analogy": "像体检报告，先看哪项超标，再决定是吃药还是改作息。",
+      "misconception": "「优化就是改算法」。很多时候瓶颈在内存访问、系统调用或锁竞争，不在算法。",
+      "prereq": [
+        "concurrency"
+      ],
+      "next": [],
+      "check": "给你一个跑得慢的程序，你能说出它最热的三个函数怎么找吗？"
+    },
+    {
+      "id": "tcp-handshake",
+      "name": "TCP 三次握手",
+      "aliases": [
+        "三次握手",
+        "TCP",
+        "四次挥手",
+        "SYN",
+        "ACK"
+      ],
+      "dimension": "systems",
+      "stage": "stage1",
+      "one_liner": "建立连接要三次往返：双方都得确认「我能发」和「你能收」，少一次就有一边不确定。",
+      "analogy": "打电话开口前先确认对方在听：喂？—在，你说—好我说了。",
+      "misconception": "「三次握手是为了安全」。它的目的是同步序列号、确认双向可达，不是加密。",
+      "prereq": [],
+      "next": [
+        "socket"
+      ],
+      "check": "断网重连时你能从抓包里指出哪一次握手没完成吗？"
+    },
+    {
+      "id": "socket",
+      "name": "套接字",
+      "aliases": [
+        "socket",
+        "套接字编程",
+        "listen",
+        "accept"
+      ],
+      "dimension": "coding",
+      "stage": "stage1",
+      "one_liner": "程序通过 socket 收发字节：地址 + 端口定位对方，读写就像读写文件。",
+      "analogy": "像给某个门牌号寄信，信里装什么它不管，只负责送到。",
+      "misconception": "「send 一次对方就 recv 一次」。TCP 是字节流，不分包，边界要自己定。",
+      "prereq": [
+        "tcp-handshake"
+      ],
+      "next": [],
+      "check": "你能写一个能被两个客户端同时连上的 echo 服务吗？"
+    },
+    {
+      "id": "sql-index",
+      "name": "索引与执行计划",
+      "aliases": [
+        "索引",
+        "执行计划",
+        "explain",
+        "全表扫描",
+        "B+树索引"
+      ],
+      "dimension": "data",
+      "stage": "stage1",
+      "one_liner": "索引是额外的排序结构，让数据库不必逐行找；代价是写入更慢、占更多空间。",
+      "analogy": "书末的索引：查词快，但每加一页都得同步更新索引。",
+      "misconception": "「索引越多越好」。每个索引都要维护，写多读少的表加一堆索引只会更慢。",
+      "prereq": [],
+      "next": [
+        "transaction"
+      ],
+      "check": "给一条慢查询加索引后，你能用 EXPLAIN 指出哪一步变了、为什么变快吗？"
+    },
+    {
+      "id": "transaction",
+      "name": "事务与隔离级别",
+      "aliases": [
+        "事务",
+        "隔离级别",
+        "ACID",
+        "脏读",
+        "丢失更新"
+      ],
+      "dimension": "data",
+      "stage": "stage1",
+      "one_liner": "事务把多个操作打包成「要么全成、要么全不成」，隔离级别决定别人能看见多少中间状态。",
+      "analogy": "转账：扣钱和加钱必须一起成功，否则账就乱了。",
+      "misconception": "「隔离级别越高越好」。越高越慢，很多系统按业务选，而不是无脑用最高级。",
+      "prereq": [
+        "sql-index"
+      ],
+      "next": [
+        "btree"
+      ],
+      "check": "两个会话同时改同一行，你能复现丢失更新并说清是哪一级隔离没挡住吗？"
+    },
+    {
+      "id": "btree",
+      "name": "B+ 树",
+      "aliases": [
+        "B+树",
+        "b+ tree",
+        "存储结构",
+        "LSM"
+      ],
+      "dimension": "data",
+      "stage": "stage1",
+      "one_liner": "一种为磁盘设计的多叉平衡树：高度低、一次读一个块，适合范围查询。",
+      "analogy": "图书馆的分区目录：先找楼层，再找书架，再找层，不用一本本翻。",
+      "misconception": "「B 树和二叉树差不多」。多叉是为了减少磁盘寻道，扇出大才是重点。",
+      "prereq": [
+        "transaction"
+      ],
+      "next": [],
+      "check": "你能说清为什么数据库索引常用 B+ 树，而内存里更常用哈希或红黑树吗？"
+    },
+    {
+      "id": "complexity",
+      "name": "复杂度",
+      "aliases": [
+        "时间复杂度",
+        "空间复杂度",
+        "大 O",
+        "O(n)",
+        "摊还分析"
+      ],
+      "dimension": "theory",
+      "stage": "stage1",
+      "one_liner": "描述输入变大时耗时怎么长：关心的是增长趋势，不是具体秒数。",
+      "analogy": "搬家费用随东西多少涨，涨得多快比这一趟多少钱更重要。",
+      "misconception": "「复杂度低就一定更快」。常数项大的时候，小数据上可能更慢。",
+      "prereq": [],
+      "next": [
+        "proof",
+        "approximation"
+      ],
+      "check": "给你一段两层循环和一段递归，你能写出各自的界并说明最坏情况吗？"
+    },
+    {
+      "id": "proof",
+      "name": "证明与归约",
+      "aliases": [
+        "证明",
+        "归纳法",
+        "归约",
+        "反证法",
+        "NP 完全"
+      ],
+      "dimension": "theory",
+      "stage": "stage1",
+      "one_liner": "证明是把「看起来对」变成「必然对」：归纳管结构，归约管难度比较。",
+      "analogy": "归约像翻译：把不会做的题翻译成一道已知很难的题，就说明它也很难。",
+      "misconception": "「举个例子就算证明」。例子只能说明存在，不能说明对所有情况成立。",
+      "prereq": [
+        "complexity"
+      ],
+      "next": [
+        "approximation"
+      ],
+      "check": "你能把一个新问题归约到顶点覆盖，并说明两个方向都要成立吗？"
+    },
+    {
+      "id": "approximation",
+      "name": "近似算法",
+      "aliases": [
+        "近似比",
+        "近似算法",
+        "启发式",
+        "2-近似"
+      ],
+      "dimension": "theory",
+      "stage": "stage1",
+      "one_liner": "难问题求不到最优时，退一步保证「不差于最优的几倍」。",
+      "analogy": "找不到最短路线时，保证自己走的路不超过最短的两倍，也算有交代。",
+      "misconception": "「近似算法就是随便给个解」。近似比必须能证明，并且要有紧例子。",
+      "prereq": [
+        "proof"
+      ],
+      "next": [],
+      "check": "顶点覆盖的 2-近似，你能证明比值不超过 2 并构造出接近 2 的例子吗？"
+    },
+    {
+      "id": "testing",
+      "name": "单元测试",
+      "aliases": [
+        "测试",
+        "单元测试",
+        "pytest",
+        "断言",
+        "覆盖率"
+      ],
+      "dimension": "coding",
+      "stage": "stage1",
+      "one_liner": "把「我以为它对」写成能自动重跑的检查，改代码时不用靠记忆。",
+      "analogy": "像出门前的清单：不用每次都重新想一遍有没有带钥匙。",
+      "misconception": "「覆盖率 100% 就没 bug」。覆盖率只说明代码被执行过，不说明检查得对。",
+      "prereq": [
+        "debugging"
+      ],
+      "next": [
+        "refactoring"
+      ],
+      "check": "你能给一个函数补三个测试，其中一个故意让它失败吗？"
+    },
+    {
+      "id": "refactoring",
+      "name": "重构",
+      "aliases": [
+        "重构",
+        "代码坏味道",
+        "解耦",
+        "技术债"
+      ],
+      "dimension": "coding",
+      "stage": "stage1",
+      "one_liner": "在不改外部行为的前提下改内部结构；前提是有测试兜住。",
+      "analogy": "整理衣柜：衣服一件不扔，但下次找起来更快。",
+      "misconception": "「重构就是重写」。重写会改行为、引入新 bug；重构必须行为不变。",
+      "prereq": [
+        "testing"
+      ],
+      "next": [],
+      "check": "你能在不改任何测试的前提下，把一段重复三遍的代码合成一处吗？"
+    },
+    {
+      "id": "transform-matrix",
+      "name": "变换矩阵",
+      "aliases": [
+        "MVP 矩阵",
+        "模型视图投影",
+        "坐标变换",
+        "法线变换"
+      ],
+      "dimension": "math",
+      "stage": "stage1",
+      "one_liner": "把三维点搬到屏幕上的三步：模型矩阵摆位置、视图矩阵换视角、投影矩阵压成平面。",
+      "analogy": "拍合照：先让人站好（模型），再选机位（视图），最后按快门成平面（投影）。",
+      "misconception": "「法线跟顶点用同一个矩阵」。缩放不均匀时法线要用逆转置矩阵，否则光照会歪。",
+      "prereq": [
+        "matrix"
+      ],
+      "next": [
+        "rendering-pipeline"
+      ],
+      "check": "你能手写出让一个立方体绕 Y 轴旋转的矩阵吗？"
+    },
+    {
+      "id": "rendering-pipeline",
+      "name": "渲染管线",
+      "aliases": [
+        "光栅化",
+        "渲染",
+        "着色",
+        "阴影",
+        "光线追踪"
+      ],
+      "dimension": "coding",
+      "stage": "stage1",
+      "one_liner": "把几何变成像素的流水线：顶点变换、光栅化成片元、逐片元算颜色。",
+      "analogy": "像印刷：先排版（几何），再把每块区域填色（片元），最后压到纸上（像素）。",
+      "misconception": "「着色器就是滤镜」。着色器是每个顶点/片元都要跑一遍的程序，决定最终长相。",
+      "prereq": [
+        "transform-matrix"
+      ],
+      "next": [],
+      "check": "你能说清阴影贴图为什么会同时出现锯齿和悬浮（peter-panning）吗？"
+    },
+    {
+      "id": "buffer-overflow",
+      "name": "栈溢出",
+      "aliases": [
+        "栈溢出",
+        "缓冲区溢出",
+        "exploit",
+        "返回地址"
+      ],
+      "dimension": "security",
+      "stage": "stage1",
+      "one_liner": "往栈上的缓冲区写超过容量的数据，会覆盖相邻的返回地址，从而改变程序执行流。",
+      "analogy": "往杯子里倒水超过容量，水会流到旁边的东西上；这里「旁边」是返回地址。",
+      "misconception": "「编译不报错就是安全的」。C 不检查数组边界，越界可能什么提示都没有。",
+      "prereq": [
+        "memory-model"
+      ],
+      "next": [],
+      "check": "在靶机里你能指出溢出点、被覆盖的返回地址、以及一种有效修复吗？"
+    },
+    {
+      "id": "crypto-basics",
+      "name": "公私钥与签名",
+      "aliases": [
+        "非对称加密",
+        "签名",
+        "验签",
+        "哈希",
+        "openssl"
+      ],
+      "dimension": "security",
+      "stage": "stage1",
+      "one_liner": "私钥签、公钥验：签名证明「这话是私钥持有者说的」，不证明内容保密。",
+      "analogy": "签名像手写签字：谁都能看到内容，但别人仿不了笔迹。",
+      "misconception": "「加密就等于签名」。加密管保密，签名管来源与完整性，两件事。",
+      "prereq": [],
+      "next": [],
+      "check": "你能用 openssl 完成一次签名与验签，并说清为什么先做哈希吗？"
     }
   ]
 }

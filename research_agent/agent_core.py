@@ -21,10 +21,16 @@ from typing import Any
 
 from . import llm
 from .tools.env_tools import env_check, env_explain, env_fix, env_guidance, env_plan
-from .tools.guide_tools import guide_assess, guide_explain, guide_roadmap, guide_tracks
 from .tools.repro_tools import repro_diff, repro_report, repro_scan
+from .tools.guide_tools import (
+    guide_assess,
+    guide_domains,
+    guide_explain,
+    guide_questions,
+    guide_roadmap,
+)
 
-SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，负责三件事：**开发环境配置**、**论文复现可行性判断**、**新手入门引导**。
+SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，负责三件事：**开发环境配置**、**论文复现可行性判断**、**新手引导（评估 → 路线 → 概念）**。
 
 环境工具：
 - env_check：体检本机环境，返回 Python/pip/conda/Git/SSH/GPU/CUDA/PyTorch 的真实状态
@@ -38,28 +44,34 @@ SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，�
 - repro_diff：把需求与本机比对，给出四档结论：block 物理不可能 / degrade 改配置能跑 / add 装一下即可 / ok 满足
 - repro_report：输出完整的 Markdown 可行性报告
 
-新手引导工具：
-- guide_assess：从用户原话（可选加其授权的目录）推断六维能力画像：Python、命令行、数学、机器学习、深度学习、科研流程
-- guide_roadmap：按画像生成分阶段路线，每项任务都有验收标准；方向可选 cv/nlp/system/data/theory/ai4science
-- guide_explain：解释一个概念，返回一句话定义、类比、常见误解、前置与下一步
-- guide_tracks：列出可选研究方向
+引导工具（评估 → 路线 → 概念）：
+- guide_domains：列出可选研究方向，以及每个方向需要哪些能力、读哪些论文
+- guide_assess：从用户原话（可选加授权目录）推断能力画像，每条结论带原话或文件路径；方向没定时只评估核心四维
+- guide_roadmap：按方向生成分阶段路线，每项任务带验收标准与预估小时；已知达标的阶段会跳过并说明理由
+- guide_explain：解释一个概念，概念库里查不到就直说没有，不要编
 
-工作方式：
-1. 用户问环境问题时，先 env_check 或 env_guidance 拿到事实，再回答，不要凭印象猜测。
-2. 用户问「这篇论文的代码我能不能跑」时，先 repro_diff，不要凭经验判断。
-3. 用户问「我该学什么 / 我这样算入门了吗」时，先 guide_assess；要出路线再调 guide_roadmap。
-4. 判断水平只能依据用户自己说的话，或用户明确授权扫描的目录。绝不主动猜路径、扫盘、读用户没提到的文件。
-5. 画像里每条结论都要能指回原话或文件路径。用户问「为什么这么判」时，答证据，不要重新算一个分数。
-6. 一次只问一个问题，问最缺的那一维；不要连续盘问，也不要给用户发问卷。
-7. 没有证据的维度就说「还不确定」，不要按 0 分当作「不会」。
-8. 解释概念用 guide_explain；它说没有，就直说概念库里没有，不要自己编定义。
-9. 路线里的阶段如果用户不认同（比如他会命令行但被判定不会），按用户的说法重排，并说明改了什么。
-10. 给命令前确认它适用于用户的操作系统。
-11. 要执行安装/卸载类命令时，先把命令和影响告诉用户，等用户明确说要执行再调用 env_fix 并传 approve_system=true。
-12. 复现结论要分清程度：卡数不够、显存差 6 倍以上属于物理阻塞，直说要换算力；版本不符属于装一下就好，别夸大。
-13. 引用复现证据时带上来源（如 README.md:5）和可信度（L2 代码推断 / L3 经验推测）。
-14. 仓库里没写、工具没返回的信息，直说不知道，不要编造版本号、卡数或命令。
-15. 回答简洁：先结论，再步骤，命令用代码块。
+关于方向的硬规则：
+1. 计算机的研究方向差别很大。**不要默认用户做人工智能**：先确认方向（系统 / 网络 / 安全 / 数据库 / 理论 / 软件工程 / 图形学 / AI / AI4Science），再做评估和路线。
+2. 方向没确定时，只评估核心四维（编程与调试、命令行与工程工具、数学基础、科研方法），不要提「你还需要补机器学习」这类话——那可能跟用户完全无关。
+3. 判断用户方向只用他自己说的话；他说的方向永远优先于关键词匹配。识别错了就说「我按 X 处理，不对你改」。
+4. 不要给用户套通用模板：系统方向补 C 与并发，理论方向补证明，数据方向补查询，AI 方向补数学与框架——这些内容不一样，也不要互相贬低。
+
+评估与路线的硬规则：
+5. 评估只依据两样东西：用户原话，或用户**明确授权**的本地目录。不要主动扫盘、不要猜路径、不要问「要不要我扫一下你的电脑」。
+6. 没证据就说「不知道」，不要说「应该会吧」；未知不等于不会，也不等于要从零开始。
+7. 用户说的和他自己之前说的矛盾时，指出来并问一句以哪个为准，不要自己挑一个。
+8. 一次只问一个问题，并且说明为什么问这个；用户说不清楚或不想答时，跳过这一维，按已有信息继续。
+9. 用户不认同判定时，按他的说法重排，并说明改了什么。
+10. 路线里的阶段如果被跳过，要给出理由（哪个维度已经到什么档位）；没确认的维度不允许跳过。
+11. 解释概念用 guide_explain；查不到就直说概念库里没有，不要自己编定义。
+
+通用规则：
+12. 给命令前确认它适用于用户的操作系统。
+13. 要执行安装/卸载类命令时，先把命令和影响告诉用户，等用户明确说要执行再调用 env_fix 并传 approve_system=true。
+14. 复现结论要分清程度：卡数不够、显存差 6 倍以上属于物理阻塞，直说要换算力；版本不符属于装一下就好，别夸大。
+15. 引用复现证据时带上来源（如 README.md:5）和可信度（L2 代码推断 / L3 经验推测）。
+16. 仓库里没写、工具没返回的信息，直说不知道，不要编造版本号、卡数或命令。
+17. 回答简洁：先结论，再步骤，命令用代码块。
 """
 
 
@@ -190,52 +202,76 @@ def build_tools():
     # ---- 新手引导 ------------------------------------------------------
 
     @tool(
-        name="guide_assess",
+        name="guide_domains",
         description=(
-            "从用户原话推断六维能力画像（Python、命令行、数学、机器学习、深度学习、科研流程），"
-            "每条结论都带原话或文件路径来源，没有证据的维度标未知、不按 0 分处理。"
-            "scan_dir 只在用户明确授权时传，用来扫描其本地 PDF/notebook/笔记目录。"
+            "列出可选的研究方向（系统/网络/安全/数据库/理论/软件工程/图形学/AI/AI4Science），"
+            "每个方向需要哪些能力维度、读哪些论文、基本功大概多少小时。"
+            "用户说不清自己方向时用它给选项，不要替用户选。"
         ),
     )
-    def guide_assess_tool(text: str, scan_dir: str = "", as_markdown: bool = True) -> str:
-        """评估新手基础。
+    def guide_domains_tool() -> str:
+        """列出研究方向及要求。"""
+        return _dump(guide_domains())
+
+    @tool(
+        name="guide_assess",
+        description=(
+            "从用户原话推能力画像，每条结论都带原话或文件路径来源，没证据的维度标未知。"
+            "维度随方向激活：方向没定时只评估核心四维（编程、工具、数学、科研方法），"
+            "不会出现机器学习这类与用户无关的维度。"
+            "scan_dir 只在用户明确授权时传，用来扫描其本地 PDF/notebook/笔记/源码目录。"
+        ),
+    )
+    def guide_assess_tool(
+        text: str,
+        scan_dir: str = "",
+        domain: str = "",
+        as_markdown: bool = True,
+    ) -> str:
+        """评估基础水平。
 
         Args:
             text: 用户原话，可跨多轮拼接
             scan_dir: 用户授权扫描的本地目录，未授权时留空
+            domain: 用户已说明的方向（id 或中文名，如 systems/系统），留空则从 text 识别
             as_markdown: 是否附带可读表格
         """
-        return _dump(guide_assess(text=text, scan_dir=scan_dir, as_markdown=as_markdown))
+        return _dump(
+            guide_assess(
+                text=text, scan_dir=scan_dir, domain=domain, as_markdown=as_markdown
+            )
+        )
 
     @tool(
         name="guide_roadmap",
         description=(
-            "按能力画像生成分阶段学习路线，每项任务都带验收标准和预计小时数；"
-            "已满足的阶段会跳过并说明理由，未确认的维度不会被默认跳过。"
-            "track 可选 cv/nlp/system/data/theory/ai4science，留空表示还没定方向。"
+            "按方向生成分阶段学习路线，每项任务都带验收标准和预估小时数。"
+            "通用主干（工程基础/读论文方法/记录表达）人人一样，方向基本功、复现哪篇论文、"
+            "第一个项目完全按方向给。已达标的阶段会跳过并说明理由，未确认的维度不会被跳过。"
+            "domain 留空表示方向还没定，会给一份「先试方向」的版本。"
         ),
     )
     def guide_roadmap_tool(
         text: str,
         scan_dir: str = "",
-        track: str = "general",
+        domain: str = "",
         weekly_hours: int = 0,
         as_markdown: bool = True,
     ) -> str:
         """生成学习路线。
 
         Args:
-            text: 用户原话，用来推断水平
+            text: 用户原话，用来识别方向与推断水平
             scan_dir: 用户授权扫描的本地目录
-            track: 方向 id，见 guide_tracks；general 表示未定
-            weekly_hours: 每周可投入小时数，0 表示用默认 10 小时
+            domain: 方向 id 或中文名，如 database/数据库；留空表示还没定
+            weekly_hours: 每周可投入小时数，0 表示不设预算
             as_markdown: 是否附可读路线
         """
         return _dump(
             guide_roadmap(
                 text=text,
                 scan_dir=scan_dir,
-                track=track,
+                domain=domain,
                 weekly_hours=weekly_hours,
                 as_markdown=as_markdown,
             ),
@@ -243,9 +279,34 @@ def build_tools():
         )
 
     @tool(
+        name="guide_questions",
+        description=(
+            "按优先级列出接下来该问的问题（一次只问一个，这里给出队列并附理由）。"
+            "方向未定时第一个问题一定是方向；信息够了会返回空。"
+        ),
+    )
+    def guide_questions_tool(
+        text: str,
+        scan_dir: str = "",
+        domain: str = "",
+        limit: int = 3,
+    ) -> str:
+        """列出待问的问题。
+
+        Args:
+            text: 用户原话
+            scan_dir: 用户授权目录
+            domain: 方向 id 或中文名
+            limit: 最多给几个问题
+        """
+        return _dump(
+            guide_questions(text=text, scan_dir=scan_dir, domain=domain, limit=limit)
+        )
+
+    @tool(
         name="guide_explain",
         description=(
-            "解释一个科研入门概念：一句话定义、类比、常见误解、前置概念、下一步、自检问题。"
+            "解释一个概念：一句话定义、类比、常见误解、前置概念、下一步、自测问题。"
             "概念库查不到时会返回候选，不要自己编定义。"
         ),
     )
@@ -253,18 +314,10 @@ def build_tools():
         """解释概念。
 
         Args:
-            term: 概念名，如「反向传播」「过拟合」「venv」
-            dimension: 可选，限定维度 python/shell/math/ml/dl/research
+            term: 概念名，如「三次握手」「栈溢出」「反向传播」「venv」
+            dimension: 可选，限定维度 coding/tools/math/research/systems/data/security/theory/ml/dl
         """
         return _dump(guide_explain(term=term, dimension=dimension))
-
-    @tool(
-        name="guide_tracks",
-        description="列出可选的科研方向及其适合人群、必读论文数量，供用户选方向。",
-    )
-    def guide_tracks_tool() -> str:
-        """列出可选方向。"""
-        return _dump(guide_tracks())
 
     return [
         env_check_tool,
@@ -275,10 +328,11 @@ def build_tools():
         repro_scan_tool,
         repro_diff_tool,
         repro_report_tool,
+        guide_domains_tool,
         guide_assess_tool,
         guide_roadmap_tool,
+        guide_questions_tool,
         guide_explain_tool,
-        guide_tracks_tool,
     ]
 
 

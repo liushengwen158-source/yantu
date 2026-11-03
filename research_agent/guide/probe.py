@@ -1,85 +1,128 @@
-"""缺信息时该问什么。
+"""一次只问一个问题。
 
-两条约定：
-
-- **一次只问一句**。画像不是问卷，是对话，连续追问会把人问跑。
-- **只在需要时问**。用户没问「我该学什么」之前，不主动盘问水平。
-
-问题刻意写成聊天口气，不带「请选择 A/B/C」的考试感。
+评估不做问卷、不判题：只根据用户自己说的话下判断，缺的信息通过对话补。
+所以这里只产出「下一个该问什么」，并且给每个问题附上问它的理由——
+用户有权说「这个不用问」，那时按用户的说法重排。
 """
 
 from __future__ import annotations
 
-from .spec import Confidence, Dimension, SkillProfile, Source
+from typing import Any
 
-# 路线最先要用到的维度排前面：先环境，再框架，最后数学与论文
-PROBE_ORDER = [
-    Dimension.SHELL,
-    Dimension.PYTHON,
-    Dimension.DL,
-    Dimension.ML,
-    Dimension.RESEARCH,
-    Dimension.MATH,
-]
+from .domains import list_domains
+from .spec import Dimension, DimensionState, Domain, Level, SkillProfile
 
-PROBES: dict[Dimension, str] = {
-    Dimension.PYTHON: "你平时用 Python 做过什么？写过最长的一个大概多少行？",
-    Dimension.SHELL: "你装东西、跑代码一般是在 Windows 上点，还是走命令行？",
-    Dimension.MATH: "线代和概率你是怎么学的——课上学的还是自己补的？推公式吃力吗？",
-    Dimension.ML: "机器学习你接触过吗？比如用 sklearn 跑过分类，或者上过课？",
-    Dimension.DL: "你有没有装过 torch，正经跑完过一次训练？",
-    Dimension.RESEARCH: "论文你读过吗？是老师给的，还是自己找的？",
+# 每个维度一个问题。都是开放式的：答完能继续判断，不是选择题。
+DIMENSION_QUESTIONS: dict[Dimension, str] = {
+    Dimension.CODING: "你平时写代码写到什么程度——是照着教程抄，还是能自己从头写一个能跑的东西？",
+    Dimension.TOOLS: "你在命令行里干活熟练吗，比如自己装环境、跑脚本、连服务器？",
+    Dimension.MATH: "数学这块你到哪一步了，比如能不能手推一个梯度或者看懂论文里的公式？",
+    Dimension.RESEARCH: "你读过论文吗，是随便翻翻还是按方法读、也复现过别人的代码？",
+    Dimension.SYSTEMS: "你写过 C 或者碰过内存、多线程这类底层的东西吗？",
+    Dimension.DATA: "你写过 SQL 或者用 pandas 处理过真实数据吗？",
+    Dimension.SECURITY: "你接触过逆向、漏洞复现或者 CTF 这类东西吗？",
+    Dimension.THEORY: "你写过证明、做过归约吗，还是主要写代码？",
+    Dimension.ML: "传统机器学习你跑过吗，比如用 sklearn 做过分类或回归？",
+    Dimension.DL: "深度学习这块你到哪一步了——装过框架、跑过训练，还是改过网络结构？",
 }
 
-REASONS: dict[Dimension, str] = {
-    Dimension.PYTHON: "后面所有实验都要写代码，先确认编程底子",
-    Dimension.SHELL: "跑实验绕不开命令行，这一维空着路线没法起头",
-    Dimension.MATH: "读论文卡符号多半是数学没过关，要先确认",
-    Dimension.ML: "决定你是从「什么是训练」开始，还是直接进复现",
-    Dimension.DL: "决定复现阶段挑 CNN 小模型还是直接上 Transformer",
-    Dimension.RESEARCH: "决定路线里要不要加「怎么读第一篇论文」这一段",
+DIMENSION_REASONS: dict[Dimension, str] = {
+    Dimension.CODING: "编程是所有方向的地基，先确定这一维才能决定从哪一层开始排。",
+    Dimension.TOOLS: "工具不熟的话，后面每个实验都会卡在环境上，不是能力问题。",
+    Dimension.MATH: "不同方向对数学的要求差很多，这一维决定要不要先补公式。",
+    Dimension.RESEARCH: "读论文和做实验的方法可以单独补，但得先知道你有没有做过。",
+    Dimension.SYSTEMS: "这个方向的基本功在底层，不确认就没法判断该不该从 C 开始。",
+    Dimension.DATA: "数据与查询能力是这个方向的入口，先确认再排任务。",
+    Dimension.SECURITY: "安全方向的门槛在二进制与协议，需要单独确认。",
+    Dimension.THEORY: "理论方向看的是证明能力，和写代码是两套本事。",
+    Dimension.ML: "这个方向要先有机器学习的基本概念，之后才好谈模型。",
+    Dimension.DL: "框架与训练经验决定你能不能直接上手复现，还是要先补一轮。",
 }
 
+DOMAIN_OPTIONS = [spec.name for spec in list_domains()]
 
-def next_question(profile: SkillProfile) -> dict[str, str] | None:
-    """返回下一个该问的问题；信息够了就返回 None，不硬凑话题。"""
-    # 证据打架优先问清楚，否则画像里的档位随时会翻
-    for state in profile.conflicts:
-        quotes = " / ".join(state.conflicts)
-        return {
-            "dimension": state.dimension.value,
-            "dimension_label": state.dimension.label,
-            "question": f"我这儿对不上：{quotes}。具体是哪种情况？",
-            "reason": "两句话指向的水平差太远，先澄清再定档",
-        }
+DOMAIN_QUESTION = (
+    "你现在大概在做哪个方向？不同方向要补的东西差很多，"
+    "先确认这个，后面的路线才不会给你一堆用不上的任务。"
+)
+DOMAIN_REASON = "方向决定评估哪些维度、编排哪些阶段；方向没定时只评估核心四维。"
 
-    for dim in PROBE_ORDER:
-        state = profile.dimensions.get(dim)
-        if state is not None and state.is_known:
-            continue
-        return {
-            "dimension": dim.value,
-            "dimension_label": dim.label,
-            "question": PROBES[dim],
-            "reason": REASONS[dim],
-        }
 
-    # 都定了档，只补「只有含糊表述」或「只有文件证据」的那几维；明确说过的就不再追问
-    thin = [s for s in profile.known if s.confidence is Confidence.LOW]
-    if thin:
-        state = thin[0]
-        dim = state.dimension
-        only_file = all(s.source is Source.FILE for s in state.signals)
-        reason = (
-            "这一维目前只有文件证据，材料在不等同于会，确认一句才敢用来排路线"
-            if only_file
-            else "这一维只有含糊表述，再确认一句才敢用来排路线"
-        )
-        return {
-            "dimension": dim.value,
-            "dimension_label": dim.label,
-            "question": PROBES[dim],
-            "reason": reason,
-        }
+def _level_label(value: int) -> str:
+    try:
+        return Level(int(value)).label
+    except ValueError:
+        return ""
 
-    return None
+
+def _priority(state: DimensionState) -> tuple[int, int, int]:
+    """越小越先问：矛盾 > 方向要求但缺证据 > 低于方向要求 > 核心维缺失。"""
+    if state.conflicts:
+        return (0, 0, int(state.level))
+    if state.required and not state.is_known:
+        return (1, -state.required, 0)
+    if state.required and state.gap:
+        return (2, -state.required, int(state.level))
+    if state.dimension.is_core:
+        return (3, 0, int(state.level))
+    return (4, 0, int(state.level))
+
+
+def _question_for(state: DimensionState) -> dict[str, Any]:
+    if state.conflicts:
+        question = "关于这一维，前面有两种说法，以哪个为准？"
+        reason = "；".join(state.conflicts)
+    else:
+        question = DIMENSION_QUESTIONS[state.dimension]
+        if state.required and state.gap:
+            current = "没有证据" if not state.is_known else f"只到「{state.level.label}」"
+            reason = (
+                f"这个方向要求这一维至少到「{_level_label(state.required)}」，"
+                f"现在{current}，先问清楚再决定补不补。"
+            )
+        else:
+            reason = DIMENSION_REASONS[state.dimension]
+    return {
+        "target": state.dimension.value,
+        "target_label": state.dimension.label,
+        "question": question,
+        "reason": reason,
+        "options": [],
+        "evidence": state.supporting.quote if state.supporting else "",
+    }
+
+
+def domain_question() -> dict[str, Any]:
+    return {
+        "target": "domain",
+        "target_label": "方向",
+        "question": DOMAIN_QUESTION,
+        "reason": DOMAIN_REASON,
+        "options": DOMAIN_OPTIONS,
+        "evidence": "",
+    }
+
+
+def next_question(profile: SkillProfile) -> dict[str, Any] | None:
+    """返回下一个该问的问题；没有需要问的返回 None。"""
+    if profile is None:
+        return None
+    if profile.domain is Domain.UNKNOWN:
+        return domain_question()
+
+    pending = [d for d in profile.dimensions.values() if d.needs_probe]
+    if not pending:
+        return None
+    pending.sort(key=_priority)
+    return _question_for(pending[0])
+
+
+def probe_plan(profile: SkillProfile, limit: int = 3) -> list[dict[str, Any]]:
+    """按优先级给出接下来几个问题，供 CLI 一次打印。"""
+    if profile is None:
+        return []
+    if profile.domain is Domain.UNKNOWN:
+        return [domain_question()]
+    pending = [d for d in profile.dimensions.values() if d.needs_probe]
+    pending.sort(key=_priority)
+    return [_question_for(state) for state in pending[: max(1, limit)]]

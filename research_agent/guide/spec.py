@@ -1,11 +1,18 @@
 """新手引导的数据契约。
 
 和 ``repro/spec.py`` 同一条原则：**任何进入结论的判断都必须能指回来源**。
+这里的来源是用户的原话，或用户授权扫描到的文件。
 
-这里的来源不是文件行号，而是用户的原话：
-- ``Signal``         一句话 → 一条证据（维度 + 档位 + 原话 + 判定理由）
-- ``DimensionState`` 一个维度的证据汇总（档位 + 置信度 + 冲突）
-- ``SkillProfile``   六维画像（谁、现在在哪、还缺什么）
+和第一版最大的区别：**维度不是固定的六维**。
+计算机的研究方向差别太大——做系统和做理论要补的东西几乎没有交集，
+所以维度分成两层：
+
+- 核心维：编程与调试、命令行与工程工具、数学基础、科研方法（谁都要）
+- 方向维：系统底层、数据与数据库、安全、算法理论、机器学习、深度学习
+  只在选定方向时才激活
+
+方向未确定时只评估核心维，``ML`` / ``DL`` 不会出现在报告里——
+不把「不需要掌握的东西」摆到用户面前，是这套设计的前提。
 
 刻意不给「总分」一个独立字段：分数永远由档位推出，旁边必须带证据，
 否则 70 分是个没法核对、也没法反驳的数字。
@@ -19,26 +26,76 @@ from statistics import median
 from typing import Any
 
 
-class Dimension(str, Enum):
-    """能力维度。刻意只留六维：再多就变成考试科目表，而不是画像。"""
+class Domain(str, Enum):
+    """研究方向。用于决定「哪些维度需要评估、哪些阶段需要走」。"""
 
-    PYTHON = "python"
-    SHELL = "shell"
-    MATH = "math"
-    ML = "ml"
-    DL = "dl"
-    RESEARCH = "research"
+    UNKNOWN = "unknown"
+    SYSTEMS = "systems"          # 系统、体系结构、分布式、存储
+    NETWORKS = "networks"        # 网络
+    SECURITY = "security"        # 系统与网络安全
+    DATABASE = "database"        # 数据库与数据管理
+    THEORY = "theory"            # 理论与算法
+    SOFTWARE = "software"        # 软件工程与程序语言
+    GRAPHICS = "graphics"        # 图形学与多媒体
+    AI = "ai"                    # 机器学习 / 深度学习 / CV / NLP
+    AI4SCIENCE = "ai4science"    # AI for Science
 
     @property
     def label(self) -> str:
         return {
-            "python": "Python 工程",
-            "shell": "命令行 / Linux",
-            "math": "数学（线代·概率）",
-            "ml": "机器学习",
-            "dl": "深度学习与框架",
-            "research": "科研流程",
+            "unknown": "未定方向",
+            "systems": "系统与体系结构",
+            "networks": "网络",
+            "security": "安全",
+            "database": "数据库与数据管理",
+            "theory": "理论与算法",
+            "software": "软件工程与程序语言",
+            "graphics": "图形学与多媒体",
+            "ai": "人工智能",
+            "ai4science": "AI for Science",
         }[self.value]
+
+
+class Dimension(str, Enum):
+    """能力维度。前四个是核心维，后面按方向激活。"""
+
+    CODING = "coding"
+    TOOLS = "tools"
+    MATH = "math"
+    RESEARCH = "research"
+    SYSTEMS = "systems"
+    DATA = "data"
+    SECURITY = "security"
+    THEORY = "theory"
+    ML = "ml"
+    DL = "dl"
+
+    @property
+    def label(self) -> str:
+        return {
+            "coding": "编程与调试",
+            "tools": "命令行与工程工具",
+            "math": "数学基础",
+            "research": "科研方法",
+            "systems": "系统与底层",
+            "data": "数据与数据库",
+            "security": "安全",
+            "theory": "算法与理论",
+            "ml": "机器学习",
+            "dl": "深度学习",
+        }[self.value]
+
+    @property
+    def is_core(self) -> bool:
+        return self in CORE_DIMENSIONS
+
+
+CORE_DIMENSIONS: tuple[Dimension, ...] = (
+    Dimension.CODING,
+    Dimension.TOOLS,
+    Dimension.MATH,
+    Dimension.RESEARCH,
+)
 
 
 class Level(IntEnum):
@@ -141,6 +198,7 @@ class DimensionState:
     conflicts: list[str] = field(default_factory=list)
     caveats: list[str] = field(default_factory=list)   # 与结论档位不同、但仍值得看的证据
     note: str = ""
+    required: int = 0                                  # 该方向要求的最低档位，0 表示无要求
 
     @property
     def supporting(self) -> Signal | None:
@@ -157,8 +215,23 @@ class DimensionState:
         return self.level.score
 
     @property
+    def required_label(self) -> str:
+        """该方向对这一维的最低要求，0 表示没有要求。"""
+        if not self.required:
+            return ""
+        try:
+            return Level(int(self.required)).label
+        except ValueError:
+            return ""
+
+    @property
     def is_known(self) -> bool:
         return self.level is not Level.UNKNOWN
+
+    @property
+    def gap(self) -> bool:
+        """已知但没达到该方向要求——这才是路线要补的地方。"""
+        return self.required > 0 and (not self.is_known or int(self.level) < self.required)
 
     @property
     def needs_probe(self) -> bool:
@@ -172,6 +245,9 @@ class DimensionState:
             "level": int(self.level),
             "level_label": self.level.label,
             "score": self.score,
+            "required": self.required,
+            "required_label": Level(int(self.required)).label if self.required else "",
+            "gap": self.gap,
             "confidence": self.confidence.value,
             "confidence_label": self.confidence.label,
             "signals": [s.to_dict() for s in self.signals],
@@ -184,26 +260,22 @@ class DimensionState:
 
 @dataclass
 class SkillProfile:
-    """六维画像。信息不够就说不够，绝不拿 0 分冒充「不会」。"""
+    """能力画像。只装「这个方向用得上」的维度。
 
+    方向未定时只有核心四维；方向确定后再加上该方向需要的维度。
+    不在适用范围内的能力，不评估、不展示、不催着补。
+    """
+
+    domain: Domain = Domain.UNKNOWN
+    domain_evidence: str = ""                                 # 从哪句话认定方向的
     dimensions: dict[Dimension, DimensionState] = field(default_factory=dict)
     text_length: int = 0
     notes: list[str] = field(default_factory=list)
-    scanned: dict[str, Any] = field(default_factory=dict)   # 授权扫描的摘要（目录/计数）
+    scanned: dict[str, Any] = field(default_factory=dict)     # 授权扫描的摘要（目录/计数）
 
     @property
     def known(self) -> list[DimensionState]:
         return [d for d in self.dimensions.values() if d.is_known]
-
-    @property
-    def file_evidence(self) -> list[Signal]:
-        """来自授权文件的证据，单独列出来，不跟自述混算。"""
-        return [
-            s
-            for d in self.dimensions.values()
-            for s in d.signals
-            if s.source is Source.FILE
-        ]
 
     @property
     def unknown(self) -> list[DimensionState]:
@@ -216,12 +288,29 @@ class SkillProfile:
         return [d for d in self.dimensions.values() if d.signals and not d.is_known]
 
     @property
+    def gaps(self) -> list[DimensionState]:
+        """低于方向要求的维度，缺口大的排前面。"""
+        items = [d for d in self.dimensions.values() if d.gap]
+        items.sort(key=lambda d: (not d.is_known, int(d.level)))
+        return items
+
+    @property
     def coverage(self) -> str:
         return f"{len(self.known)}/{len(self.dimensions)}"
 
     @property
     def conflicts(self) -> list[DimensionState]:
         return [d for d in self.dimensions.values() if d.conflicts]
+
+    @property
+    def file_evidence(self) -> list[Signal]:
+        """来自授权文件的证据，单独列出来，不跟自述混算。"""
+        return [
+            s
+            for d in self.dimensions.values()
+            for s in d.signals
+            if s.source is Source.FILE
+        ]
 
     @property
     def overall(self) -> Level:
@@ -233,6 +322,9 @@ class SkillProfile:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "domain": self.domain.value,
+            "domain_label": self.domain.label,
+            "domain_evidence": self.domain_evidence,
             "coverage": self.coverage,
             "known_count": len(self.known),
             "unknown_count": len(self.unknown),
@@ -242,4 +334,5 @@ class SkillProfile:
             "notes": self.notes,
             "scanned": self.scanned,
             "dimensions": [d.to_dict() for d in self.dimensions.values()],
+            "gaps": [d.dimension.value for d in self.gaps],
         }

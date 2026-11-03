@@ -1,165 +1,169 @@
-"""画像渲染。
+"""把画像渲染成人能读的文本。
 
-表格里四样东西必须同时出现，缺一个就没法核对：
-**维度 → 档位 / 置信 → 来源（自述还是文件） → 证据 → 为什么这么判**。
+两条排版原则：
+- 每一行都带「证据」和「来源」，用户能顺着引文回到自己说过的话
+- 未知就说未知，不用「暂无数据」之类含糊话遮住
+
+方向相关的维度名不是固定的，表格按当前方向实际激活的维度生成，
+不会出现「深度学习：未知」摆在一个做系统的学生面前。
 """
 
 from __future__ import annotations
 
-import unicodedata
+from typing import Iterable
 
-from .spec import Confidence, DimensionState, SkillProfile, Source
-
-QUOTE_WIDTH = 34
-WHY_WIDTH = 30
+from .spec import Dimension, DimensionState, SkillProfile, Source
 
 
-def _width(text: str) -> int:
-    """中文按 2 列算，否则终端里表格会歪。"""
-    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in text)
-
-
-def _truncate(text: str, limit: int) -> str:
-    if _width(text) <= limit:
-        return text
-    out = ""
-    for ch in text:
-        if _width(out + ch) > limit - 1:
-            break
-        out += ch
-    return out + "…"
-
-
-def _pad(text: str, limit: int) -> str:
-    return text + " " * max(0, limit - _width(text))
-
-
-def _source_cell(state: DimensionState, limit: int = 22) -> str:
-    """来源必须单独列出来：自述和文件证据的可信度不是一回事。
-
-    文件证据带上路径，否则用户没法回去核对「哪份材料让他这么判」。
-    """
+def _source_cell(state: DimensionState) -> str:
     if not state.signals:
         return "—"
-    refs = [s.source_ref for s in state.signals if s.source is Source.FILE and s.source_ref]
-    has_self = any(s.source is Source.SELF for s in state.signals)
-    if refs and has_self:
-        return "自述+文件"
-    if refs:
-        return "文件 " + _truncate(refs[0], limit)
-    labels = [src.label for src in sorted({s.source for s in state.signals}, key=lambda x: x.value)]
-    return "+".join(labels)
+    kinds = {s.source.label for s in state.signals}
+    return "+".join(sorted(kinds))
 
 
 def _evidence_cell(state: DimensionState) -> str:
-    if state.conflicts:
-        quotes = [s.quote for s in state.signals[:2]]
-        return " / ".join(f"「{q}」" for q in quotes)
-    sig = state.supporting
-    if sig is None:
+    signal = state.supporting
+    if signal is None:
         return "—"
-    if len(state.signals) > 1:
-        return f"「{sig.quote}」 等 {len(state.signals)} 条"
-    return f"「{sig.quote}」"
-
-
-def _why_cell(state: DimensionState) -> str:
-    if state.conflicts:
-        return "两句话矛盾，先确认再定档"
-    sig = state.supporting
-    if sig is None:
-        return "没有证据，不猜"
-    return sig.why or "—"
+    quote = signal.quote.replace("|", "\\|").replace("\n", " ")
+    if len(quote) > 40:
+        quote = quote[:40] + "…"
+    ref = f"（{signal.source_ref}）" if signal.source_ref else ""
+    return f"「{quote}」{ref}"
 
 
 def render_table(profile: SkillProfile) -> str:
-    rows = []
+    """六列表格：维度、档位、该方向要求、置信、来源、证据。"""
+    lines = [
+        "| 维度 | 档位 | 方向要求 | 置信 | 来源 | 证据 |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
     for state in profile.dimensions.values():
-        rows.append(
-            [
-                state.dimension.label,
-                state.level.label,
-                state.confidence.label,
-                _source_cell(state),
-                _truncate(_evidence_cell(state), QUOTE_WIDTH),
-                _truncate(_why_cell(state), WHY_WIDTH),
-            ]
+        required = state.required_label if state.required else "—"
+        if state.gap and state.is_known:
+            required += " ↑"
+        lines.append(
+            "| {dim} | {level} | {req} | {conf} | {src} | {ev} |".format(
+                dim=state.dimension.label,
+                level=state.level.label if state.is_known else "未知",
+                req=required,
+                conf=state.confidence.label,
+                src=_source_cell(state),
+                ev=_evidence_cell(state),
+            )
         )
-
-    headers = ["维度", "档位", "置信", "来源", "证据", "为什么这么判"]
-    widths = [max(_width(h), max(_width(r[i]) for r in rows)) for i, h in enumerate(headers)]
-
-    def line(cells: list[str]) -> str:
-        return "  ".join(_pad(c, w) for c, w in zip(cells, widths)).rstrip()
-
-    out = [line(headers), "  ".join("-" * w for w in widths)]
-    out.extend(line(r) for r in rows)
-    return "\n".join(out)
+    return "\n".join(lines)
 
 
 def render_profile(profile: SkillProfile) -> str:
-    """完整文本报告：表格 + 整体结论 + 缺口 + 建议追问。"""
-    from .probe import next_question
+    """完整报告：方向 → 表格 → 矛盾与旁证 → 文件证据 → 下一步。"""
+    out: list[str] = []
+    out.append(f"# 基础评估：{profile.domain.label}")
+    if profile.domain_evidence:
+        out.append(f"> 方向依据你原话：「{profile.domain_evidence}」")
+    out.append(
+        f"整体档位 **{profile.overall.label}**（取已知维度的中位数，不给平均分）；"
+        f"已确认 {profile.coverage} 个维度。"
+    )
+    out.append(render_table(profile))
 
-    parts = [render_table(profile), ""]
-    parts.append(f"覆盖 {profile.coverage} 维 · 整体档位：{profile.overall.label}")
+    if profile.notes:
+        out.append("")
+        for note in profile.notes:
+            out.append(f"- {note}")
 
-    if profile.scanned:
-        sc = profile.scanned
-        parts.append(
-            f"授权材料：{sc.get('papers', 0)} 篇 PDF（{sc.get('papers_with_notes', 0)} 篇有同名笔记）"
-            f" · {sc.get('notebooks', 0)} 个 notebook · {sc.get('notes', 0)} 份笔记"
-        )
+    conflicts = [d for d in profile.dimensions.values() if d.conflicts]
+    if conflicts:
+        out.append("")
+        out.append("## 说法不一致，需要你确认")
+        for state in conflicts:
+            for item in state.conflicts:
+                out.append(f"- **{state.dimension.label}**：{item}")
 
-    if profile.file_evidence:
-        parts.append("")
-        parts.append("文件证据（只能证明材料在，不能证明掌握）：")
-        for s in profile.file_evidence[:8]:
-            parts.append(f"  - [{s.dimension.label}] {s.quote}")
-
-    if profile.conflicts:
-        parts.append("")
-        parts.append("需要确认的矛盾：")
-        for state in profile.conflicts:
-            for c in state.conflicts:
-                parts.append(f"  - [{state.dimension.label}] {c}")
-
-    caveats = [(d, c) for d in profile.dimensions.values() for c in d.caveats]
+    caveats = [d for d in profile.dimensions.values() if d.caveats]
     if caveats:
-        parts.append("")
-        parts.append("同一维度里的其他明确说法（不改档位，但值得知道）：")
-        for d, c in caveats[:6]:
-            parts.append(f"  - [{d.dimension.label}] {c}")
+        out.append("")
+        out.append("## 旁证（不参与定档）")
+        for state in caveats:
+            for item in state.caveats[:2]:
+                out.append(f"- **{state.dimension.label}**：{item}")
 
-    if profile.pending:
-        names = "、".join(s.dimension.label for s in profile.pending)
-        parts.append(f"待确认的维度：{names}")
+    files = profile.file_evidence
+    if files:
+        out.append("")
+        out.append("## 文件证据（来自你授权扫描的目录）")
+        for signal in files[:8]:
+            out.append(
+                f"- {signal.source_ref} → {signal.dimension.label}"
+                f"（{signal.level.label}，仅旁证）：{signal.why}"
+            )
+        if len(files) > 8:
+            out.append(f"- 其余 {len(files) - 8} 条略。")
 
-    if profile.unknown:
-        names = "、".join(s.dimension.label for s in profile.unknown)
-        parts.append(f"还没有证据的维度：{names}")
-
-    for note in profile.notes:
-        parts.append(f"注意：{note}")
-
-    q = next_question(profile)
-    if q:
-        parts.append("")
-        parts.append(f"建议下一句问：{q['question']}")
-        parts.append(f"（问这个是因为 {q['reason']}）")
-
-    return "\n".join(parts)
+    out.append("")
+    out.append("## 说明")
+    out.append("- 这一页只依据你原话和你授权扫描的目录，没有跑测评、没有判题。")
+    out.append("- 没提到的维度就是「不知道」，不等于「不会」；想补就说一句，我重排。")
+    out.append("- 判定不对时直接说你的实际情况，以你说的为准。")
+    return "\n".join(out)
 
 
-def render_brief(profile: SkillProfile, limit: int = 400) -> str:
-    """给 agent 用的一句话摘要，避免把整张表塞进上下文。"""
-    known = profile.known
-    if not known:
-        return "还不知道用户水平：对话里没有可用证据。"
-    items = "、".join(f"{s.dimension.label}{s.level.label}" for s in known[:4])
-    text = f"已知 {profile.coverage} 维（{items}），整体{profile.overall.label}"
-    if profile.conflicts:
-        text += f"，另有 {len(profile.conflicts)} 个维度证据矛盾待确认"
-    if profile.unknown:
-        text += f"，缺 {len(profile.unknown)} 维信息"
-    return text[:limit]
+def render_brief(profile: SkillProfile) -> str:
+    """一句话摘要，给 CLI 与工具返回用。"""
+    if not profile.known:
+        return f"方向：{profile.domain.label}；还没有可定档的证据。"
+
+    head = (
+        f"方向：{profile.domain.label}；整体 {profile.overall.label}；"
+        f"已确认 {profile.coverage}。"
+    )
+    below = [
+        d for d in profile.dimensions.values() if d.gap and d.is_known
+    ]
+    unknown = [d for d in profile.dimensions.values() if d.gap and not d.is_known]
+    parts: list[str] = []
+    if below:
+        parts.append(
+            "低于要求："
+            + "、".join(f"{d.dimension.label}（{d.level.label}）" for d in below[:4])
+        )
+    if unknown:
+        parts.append(
+            "还没确认：" + "、".join(d.dimension.label for d in unknown[:4])
+        )
+    if not parts:
+        return head + "该方向要求的维度都已达到要求。"
+    return head + "；".join(parts) + "。"
+
+
+def render_questions(questions: Iterable[dict]) -> str:
+    """把待问的问题按顺序排出来，每条都带理由。"""
+    items = list(questions)
+    if not items:
+        return "没有需要追问的维度了。"
+    lines = ["按优先级，接下来可以问："]
+    for index, item in enumerate(items, 1):
+        lines.append(f"{index}. {item['question']}")
+        lines.append(f"   理由：{item['reason']}")
+        if item.get("options"):
+            lines.append(f"   可选：{'、'.join(item['options'])}")
+    return "\n".join(lines)
+
+
+def dimension_line(state: DimensionState) -> str:
+    """单行展示，供路线里的「前置」引用。"""
+    if not state.is_known:
+        return f"{state.dimension.label}：未知"
+    ref = state.supporting
+    suffix = f"（依据「{ref.quote}」）" if ref and ref.source is Source.SELF else ""
+    return f"{state.dimension.label}：{state.level.label}{suffix}"
+
+
+def dim_label(dimension: Dimension | str) -> str:
+    if isinstance(dimension, Dimension):
+        return dimension.label
+    try:
+        return Dimension(dimension).label
+    except ValueError:
+        return str(dimension)

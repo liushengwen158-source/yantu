@@ -9,6 +9,8 @@
     python cli.py ask "torch 装不上"     问知识库 + 大模型（需配 API Key）
     python cli.py guide profile "..."   从对话推断六维能力画像
     python cli.py guide roadmap "..."   生成带验收标准的学习路线
+    python cli.py guide questions "..." 列出接下来该问的问题
+    python cli.py guide domains         列出方向及其要求
     python cli.py guide explain 反向传播 解释一个概念
     python cli.py guide tracks          列出可选研究方向
 """
@@ -181,7 +183,11 @@ def cmd_guide_profile(args: argparse.Namespace) -> int:
         print("  python cli.py guide profile --scan ~/Desktop/papers")
         return 2
 
-    profile = build_profile(text, scan=scan)
+    domain = _resolve_domain_arg(getattr(args, "domain", ""))
+    if domain is False:
+        return 2
+
+    profile = build_profile(text, scan=scan, domain=domain)
     if args.json:
         payload = profile.to_dict()
         if scan is not None:
@@ -226,12 +232,14 @@ def cmd_guide_roadmap(args: argparse.Namespace) -> int:
         print('  python cli.py guide roadmap "我大一，Python 只会 print，没跑过训练"')
         return 2
 
-    profile = build_profile(text, scan=scan)
-    try:
-        roadmap = build_roadmap(profile, track=args.track, weekly_hours=args.hours)
-    except ValueError as exc:
-        print(f"{exc}")
+    domain = _resolve_domain_arg(getattr(args, "domain", ""))
+    if domain is False:
         return 2
+
+    profile = build_profile(text, scan=scan, domain=domain)
+    roadmap = build_roadmap(
+        profile, hours_limit=args.hours * 8 if args.hours else None
+    )
 
     if args.json:
         print(json.dumps(roadmap.to_dict(), ensure_ascii=False, indent=2))
@@ -245,6 +253,66 @@ def cmd_guide_roadmap(args: argparse.Namespace) -> int:
         print(output)
     return 0
 
+
+
+def _resolve_domain_arg(value: str):
+    """解析 --domain 参数。返回 Domain / None（未指定）/ False（无法识别）。"""
+    from research_agent.guide import list_tracks, resolve_domain
+
+    if not (value or "").strip() or value in ("general", "unknown"):
+        return None
+    try:
+        return resolve_domain(value)
+    except ValueError as exc:
+        print(f"{exc}")
+        print("可选方向：")
+        for item in list_tracks():
+            print(f"  {item['id']:<12} {item['name']}")
+        return False
+
+
+def cmd_guide_questions(args: argparse.Namespace) -> int:
+    from research_agent.guide import (
+        build_profile,
+        probe_plan,
+        render_questions,
+        scan_materials,
+    )
+
+    try:
+        text, scan = _guide_inputs(args)
+    except (FileNotFoundError, NotADirectoryError) as exc:
+        print(f"读取失败：{exc}")
+        return 2
+
+    domain = _resolve_domain_arg(getattr(args, "domain", ""))
+    if domain is False:
+        return 2
+
+    profile = build_profile(text, scan=scan, domain=domain)
+    plan = probe_plan(profile, limit=args.limit)
+    if args.json:
+        print(json.dumps(plan, ensure_ascii=False, indent=2))
+        return 0
+    print(render_questions(plan))
+    return 0
+
+
+def cmd_guide_domains(args: argparse.Namespace) -> int:
+    from research_agent.guide import list_domains
+
+    items = [spec.to_dict() for spec in list_domains()]
+    if args.json:
+        print(json.dumps(items, ensure_ascii=False, indent=2))
+        return 0
+    for item in items:
+        print(f"{item['id']:<12} {item['name']}")
+        if item.get("why"):
+            print(f"{'':<12} {item['why']}")
+        dims = "、".join(f"{k}{v}" for k, v in (item.get("dims") or {}).items())
+        print(f"{'':<12} 维度要求：{dims}")
+        print(f"{'':<12} 论文：{len(item.get('papers') or [])} 篇")
+    return 0
 
 def cmd_guide_explain(args: argparse.Namespace) -> int:
     from research_agent.guide import explain, render_card, render_miss
@@ -332,7 +400,8 @@ def main(argv: list[str] | None = None) -> int:
     p_profile = guide_sub.add_parser("profile", help="从对话文本生成能力画像")
     p_profile.add_argument("text", nargs="?", default="", help="对话内容（或用 --file）")
     p_profile.add_argument("--file", help="从文本文件读取对话内容")
-    p_profile.add_argument("--scan", help="授权扫描的材料目录（PDF / notebook / 笔记）")
+    p_profile.add_argument("--scan", help="授权扫描的材料目录（PDF / notebook / 笔记 / 源码）")
+    p_profile.add_argument("--domain", help="方向 id 或名称，如 systems / 系统；留空则从对话识别")
     p_profile.add_argument("--json", action="store_true", help="输出 JSON（给 agent 或脚本用）")
     p_profile.set_defaults(func=cmd_guide_profile)
 
@@ -340,8 +409,8 @@ def main(argv: list[str] | None = None) -> int:
     p_roadmap.add_argument("text", nargs="?", default="", help="对话内容（或用 --file）")
     p_roadmap.add_argument("--file", help="从文本文件读取对话内容")
     p_roadmap.add_argument("--scan", help="授权扫描的材料目录")
-    p_roadmap.add_argument("--track", default="general", help="方向 id，见 guide tracks")
-    p_roadmap.add_argument("--hours", type=int, help="每周可投入小时数（默认 10）")
+    p_roadmap.add_argument("--domain", help="方向 id 或名称，如 database / 数据库；留空则从对话识别")
+    p_roadmap.add_argument("--hours", type=int, help="每周可投入小时数（按 8 周折算总预算）")
     p_roadmap.add_argument("--out", help="写入指定 Markdown 文件")
     p_roadmap.add_argument("--json", action="store_true")
     p_roadmap.set_defaults(func=cmd_guide_roadmap)
@@ -352,9 +421,22 @@ def main(argv: list[str] | None = None) -> int:
     p_explain.add_argument("--json", action="store_true")
     p_explain.set_defaults(func=cmd_guide_explain)
 
-    p_tracks = guide_sub.add_parser("tracks", help="列出可选研究方向")
+    p_questions = guide_sub.add_parser("questions", help="按优先级列出接下来该问的问题")
+    p_questions.add_argument("text", nargs="?", default="")
+    p_questions.add_argument("--file")
+    p_questions.add_argument("--scan")
+    p_questions.add_argument("--domain")
+    p_questions.add_argument("--limit", type=int, default=3)
+    p_questions.add_argument("--json", action="store_true")
+    p_questions.set_defaults(func=cmd_guide_questions)
+
+    p_tracks = guide_sub.add_parser("tracks", help="列出可选研究方向（简要）")
     p_tracks.add_argument("--json", action="store_true")
     p_tracks.set_defaults(func=cmd_guide_tracks)
+
+    p_domains = guide_sub.add_parser("domains", help="列出研究方向及要求（含论文与项目）")
+    p_domains.add_argument("--json", action="store_true")
+    p_domains.set_defaults(func=cmd_guide_domains)
 
     args = parser.parse_args(argv)
     return args.func(args)
