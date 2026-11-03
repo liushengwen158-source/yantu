@@ -20,7 +20,7 @@
       "id": "coding.syntax",
       "dimension": "coding",
       "level": 1,
-      "strength": "weak",
+      "strength": "strong",
       "polarity": "positive",
       "why": "只接触过语法层面，还不能独立写出程序。",
       "patterns": [

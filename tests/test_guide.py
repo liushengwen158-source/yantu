@@ -217,11 +217,12 @@ class RenderTests(unittest.TestCase):
 
 
 class ProbeTests(unittest.TestCase):
-    def test_unknown_domain_asks_domain_first(self) -> None:
+    def test_unknown_domain_does_not_ask_direction(self) -> None:
         profile = build_profile("我还在看，方向没定")
         question = next_question(profile)
-        self.assertEqual(question["target"], "domain")
-        self.assertEqual(len(question["options"]), len(list_domains()))
+        self.assertIsNotNone(question)
+        self.assertNotEqual(question["target"], "domain")
+        self.assertIn(question["target"], {d.value for d in CORE_DIMENSIONS})
 
     def test_question_targets_an_active_dimension(self) -> None:
         profile = build_profile("我在做数据库方向")

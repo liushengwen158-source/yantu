@@ -119,8 +119,9 @@ def build_profile_from_signals(
 
     if resolved_domain.value == "unknown":
         profile.notes.append(
-            "方向还没定，所以只评估核心四维（编程、工具、数学、科研方法）；"
+            "你没提方向，所以只评估核心四维（编程、工具、数学、科研方法）；"
             "方向相关的维度先不评估，免得让你补用不上的东西。"
+            "想做哪个方向直接说一声，我按那个方向重排。"
         )
     else:
         profile.notes.append(

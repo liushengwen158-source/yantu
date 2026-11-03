@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from .spec import Dimension, DimensionState, SkillProfile, Source
+from .spec import Dimension, DimensionState, Domain, SkillProfile, Source
 
 
 def _source_cell(state: DimensionState) -> str:
@@ -118,6 +118,17 @@ def render_brief(profile: SkillProfile) -> str:
         f"方向：{profile.domain.label}；整体 {profile.overall.label}；"
         f"已确认 {profile.coverage}。"
     )
+    if profile.domain is Domain.UNKNOWN:
+        missing = [
+            d.dimension.label for d in profile.dimensions.values() if not d.is_known
+        ]
+        tail = (
+            "还没确认：" + "、".join(missing[:4]) + "。"
+            if missing
+            else "核心四维都有证据了。"
+        )
+        return head + "方向未定，只评估了核心四维。" + tail
+
     below = [
         d for d in profile.dimensions.values() if d.gap and d.is_known
     ]

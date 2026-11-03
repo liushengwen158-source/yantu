@@ -3,6 +3,9 @@
 评估不做问卷、不判题：只根据用户自己说的话下判断，缺的信息通过对话补。
 所以这里只产出「下一个该问什么」，并且给每个问题附上问它的理由——
 用户有权说「这个不用问」，那时按用户的说法重排。
+
+方向**不由系统先问**。用户想说的时候自己会说，没说就按通用主干走；
+``domain_question()`` 只在用户主动问「我该选什么方向」时才用。
 """
 
 from __future__ import annotations
@@ -10,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from .domains import list_domains
-from .spec import Dimension, DimensionState, Domain, Level, SkillProfile
+from .spec import Dimension, DimensionState, Level, SkillProfile
 
 # 每个维度一个问题。都是开放式的：答完能继续判断，不是选择题。
 DIMENSION_QUESTIONS: dict[Dimension, str] = {
@@ -93,6 +96,7 @@ def _question_for(state: DimensionState) -> dict[str, Any]:
 
 
 def domain_question() -> dict[str, Any]:
+    """方向清单。只在用户主动问「有哪些方向 / 我该选什么」时给出。"""
     return {
         "target": "domain",
         "target_label": "方向",
@@ -104,11 +108,13 @@ def domain_question() -> dict[str, Any]:
 
 
 def next_question(profile: SkillProfile) -> dict[str, Any] | None:
-    """返回下一个该问的问题；没有需要问的返回 None。"""
+    """返回下一个该问的问题；没有需要问的返回 None。
+
+    方向不由系统先问：用户想说的时候自己会说。方向未定时只问核心四维，
+    不拿「你在做哪个方向」拦在评估前面。
+    """
     if profile is None:
         return None
-    if profile.domain is Domain.UNKNOWN:
-        return domain_question()
 
     pending = [d for d in profile.dimensions.values() if d.needs_probe]
     if not pending:
@@ -121,8 +127,6 @@ def probe_plan(profile: SkillProfile, limit: int = 3) -> list[dict[str, Any]]:
     """按优先级给出接下来几个问题，供 CLI 一次打印。"""
     if profile is None:
         return []
-    if profile.domain is Domain.UNKNOWN:
-        return [domain_question()]
     pending = [d for d in profile.dimensions.values() if d.needs_probe]
     pending.sort(key=_priority)
     return [_question_for(state) for state in pending[: max(1, limit)]]
