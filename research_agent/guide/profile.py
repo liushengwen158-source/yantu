@@ -6,13 +6,17 @@
 - **矛盾才不猜**：只有「明确说会」和「明确说不会」同时出现，才算矛盾，标待确认；
   从「写过爬虫」到「自己写过库」属于正常成长，不算冲突
 - **置信看证据条数**：两条独立明确陈述才算高置信，一条算中，全是含糊表述算低
+- **文件不定档**：授权扫描到的材料只作旁证，单靠文件给的结论一律低置信，
+  与自述不一致时作为「对撞」摆出来，不替用户下结论
 - **没有证据就是未知**：不是 0 分，也不按「不会」处理
 """
 
 from __future__ import annotations
 
+from typing import Any
+
 from . import signals as signal_mod
-from .spec import Confidence, Dimension, DimensionState, Level, Signal, SkillProfile
+from .spec import Confidence, Dimension, DimensionState, Level, Signal, SkillProfile, Source
 
 STRONG_WEIGHT = 2
 WEAK_WEIGHT = 1
@@ -28,11 +32,21 @@ def _aggregate(dimension: Dimension, sigs: list[Signal]) -> DimensionState:
         state.note = "对话里没有相关信息"
         return state
 
-    strong = [s for s in sigs if s.strength == "strong"]
-    weak = [s for s in sigs if s.strength != "strong"]
+    # 自述与文件分开算：文件只能证明「材料在」，不参与定档，只做旁证
+    self_sigs = [s for s in sigs if s.source is not Source.FILE]
+    file_sigs = [s for s in sigs if s.source is Source.FILE]
+
+    if not self_sigs:
+        state.level = max(s.level for s in file_sigs)
+        state.confidence = Confidence.LOW
+        state.note = "只有文件证据：材料在，不等于读过或会做，按低置信参考"
+        return state
+
+    strong = [s for s in self_sigs if s.strength == "strong"]
+    weak = [s for s in self_sigs if s.strength != "strong"]
 
     weights: dict[Level, int] = {}
-    for s in sigs:
+    for s in self_sigs:
         w = STRONG_WEIGHT if s.strength == "strong" else WEAK_WEIGHT
         weights[s.level] = weights.get(s.level, 0) + w
     total = sum(weights.values())
@@ -56,6 +70,11 @@ def _aggregate(dimension: Dimension, sigs: list[Signal]) -> DimensionState:
     for s in strong:
         if s.level != state.level:
             state.caveats.append(f"「{s.quote}」（{s.level.label}）")
+
+    # 文件证据与结论不一致时摆出来，让用户自己判断是「材料不对」还是「自述高估」
+    for s in file_sigs:
+        if s.level != state.level:
+            state.caveats.append(f"「{s.quote}」（文件证据，{s.level.label}）")
 
     if len(strong) >= 2:
         state.confidence = Confidence.HIGH
@@ -84,10 +103,27 @@ def build_profile_from_signals(sigs: list[Signal], text_length: int = 0) -> Skil
     return profile
 
 
-def build_profile(text: str, rules: list[dict] | None = None) -> SkillProfile:
-    """从一段（可跨多轮的）对话文本构建画像。"""
+def build_profile(
+    text: str,
+    rules: list[dict] | None = None,
+    scan: Any | None = None,
+) -> SkillProfile:
+    """从一段（可跨多轮的）对话文本构建画像。
+
+    ``scan`` 是 ``materials.MaterialScan``，只在用户授权时才传进来；
+    它的证据以 ``source=FILE`` 并入，不参与定档。
+    """
     sigs = signal_mod.extract(text or "", rules)
-    return build_profile_from_signals(sigs, text_length=len(text or ""))
+    profile = build_profile_from_signals(sigs, text_length=len(text or ""))
+    if scan is not None:
+        merged = list(sigs) + list(scan.signals)
+        profile = build_profile_from_signals(merged, text_length=len(text or ""))
+        profile.scanned = scan.summary()
+        profile.notes.extend(scan.notes)
+        if not text.strip() and scan.signals:
+            profile.notes.append("没有对话内容，只有文件证据，档位只作参考。")
+    return profile
+
 
 
 def merge_profiles(*profiles: SkillProfile) -> SkillProfile:

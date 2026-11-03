@@ -13,19 +13,31 @@
 以路线上的卡点为触发条件，因此三者共用同一份画像，不各自维护一份判断。
 """
 
+from .materials import Material, MaterialScan, scan_materials
 from .profile import build_profile, build_profile_from_signals, merge_profiles
 from .probe import next_question
 from .render import render_brief, render_profile, render_table
-from .signals import extract, load_rules, split_sentences
-from .spec import Confidence, Dimension, DimensionState, Level, Signal, SkillProfile
+from .signals import extract, load_rules, split_clauses, split_sentences
+from .spec import (
+    Confidence,
+    Dimension,
+    DimensionState,
+    Level,
+    Signal,
+    SkillProfile,
+    Source,
+)
 
 __all__ = [
     "Confidence",
     "Dimension",
     "DimensionState",
     "Level",
+    "Material",
+    "MaterialScan",
     "Signal",
     "SkillProfile",
+    "Source",
     "build_profile",
     "build_profile_from_signals",
     "merge_profiles",
@@ -35,5 +47,7 @@ __all__ = [
     "render_brief",
     "render_profile",
     "render_table",
+    "scan_materials",
+    "split_clauses",
     "split_sentences",
 ]

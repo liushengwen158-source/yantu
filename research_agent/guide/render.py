@@ -1,14 +1,14 @@
 """画像渲染。
 
-表格里三样东西必须同时出现，缺一个就没法核对：
-**维度 → 档位 / 置信 → 你的原话 → 为什么这么判**。
+表格里四样东西必须同时出现，缺一个就没法核对：
+**维度 → 档位 / 置信 → 来源（自述还是文件） → 证据 → 为什么这么判**。
 """
 
 from __future__ import annotations
 
 import unicodedata
 
-from .spec import Confidence, DimensionState, SkillProfile
+from .spec import Confidence, DimensionState, SkillProfile, Source
 
 QUOTE_WIDTH = 34
 WHY_WIDTH = 30
@@ -32,6 +32,23 @@ def _truncate(text: str, limit: int) -> str:
 
 def _pad(text: str, limit: int) -> str:
     return text + " " * max(0, limit - _width(text))
+
+
+def _source_cell(state: DimensionState, limit: int = 22) -> str:
+    """来源必须单独列出来：自述和文件证据的可信度不是一回事。
+
+    文件证据带上路径，否则用户没法回去核对「哪份材料让他这么判」。
+    """
+    if not state.signals:
+        return "—"
+    refs = [s.source_ref for s in state.signals if s.source is Source.FILE and s.source_ref]
+    has_self = any(s.source is Source.SELF for s in state.signals)
+    if refs and has_self:
+        return "自述+文件"
+    if refs:
+        return "文件 " + _truncate(refs[0], limit)
+    labels = [src.label for src in sorted({s.source for s in state.signals}, key=lambda x: x.value)]
+    return "+".join(labels)
 
 
 def _evidence_cell(state: DimensionState) -> str:
@@ -63,12 +80,13 @@ def render_table(profile: SkillProfile) -> str:
                 state.dimension.label,
                 state.level.label,
                 state.confidence.label,
+                _source_cell(state),
                 _truncate(_evidence_cell(state), QUOTE_WIDTH),
                 _truncate(_why_cell(state), WHY_WIDTH),
             ]
         )
 
-    headers = ["维度", "档位", "置信", "你的原话", "为什么这么判"]
+    headers = ["维度", "档位", "置信", "来源", "证据", "为什么这么判"]
     widths = [max(_width(h), max(_width(r[i]) for r in rows)) for i, h in enumerate(headers)]
 
     def line(cells: list[str]) -> str:
@@ -85,6 +103,19 @@ def render_profile(profile: SkillProfile) -> str:
 
     parts = [render_table(profile), ""]
     parts.append(f"覆盖 {profile.coverage} 维 · 整体档位：{profile.overall.label}")
+
+    if profile.scanned:
+        sc = profile.scanned
+        parts.append(
+            f"授权材料：{sc.get('papers', 0)} 篇 PDF（{sc.get('papers_with_notes', 0)} 篇有同名笔记）"
+            f" · {sc.get('notebooks', 0)} 个 notebook · {sc.get('notes', 0)} 份笔记"
+        )
+
+    if profile.file_evidence:
+        parts.append("")
+        parts.append("文件证据（只能证明材料在，不能证明掌握）：")
+        for s in profile.file_evidence[:8]:
+            parts.append(f"  - [{s.dimension.label}] {s.quote}")
 
     if profile.conflicts:
         parts.append("")

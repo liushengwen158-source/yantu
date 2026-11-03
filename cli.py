@@ -152,7 +152,7 @@ def cmd_paper_report(args: argparse.Namespace) -> int:
 def cmd_guide_profile(args: argparse.Namespace) -> int:
     from pathlib import Path
 
-    from research_agent.guide import build_profile, render_profile
+    from research_agent.guide import build_profile, render_profile, scan_materials
 
     if args.file:
         path = Path(args.file)
@@ -163,14 +163,26 @@ def cmd_guide_profile(args: argparse.Namespace) -> int:
     else:
         text = args.text or ""
 
-    if not text.strip():
-        print("给一段对话内容，或用 --file 指定文件。例如：")
+    scan = None
+    if args.scan:
+        try:
+            scan = scan_materials(args.scan)
+        except (FileNotFoundError, NotADirectoryError) as exc:
+            print(f"扫描失败：{exc}")
+            return 2
+
+    if not text.strip() and scan is None:
+        print("给一段对话内容，或用 --file 指定文件；也可以加 --scan 授权扫描一个目录。例如：")
         print('  python cli.py guide profile "我写过爬虫，torch 装了但 cuda 一直是 false"')
+        print("  python cli.py guide profile --scan ~/Desktop/papers")
         return 2
 
-    profile = build_profile(text)
+    profile = build_profile(text, scan=scan)
     if args.json:
-        print(json.dumps(profile.to_dict(), ensure_ascii=False, indent=2))
+        payload = profile.to_dict()
+        if scan is not None:
+            payload["materials"] = scan.to_dict()
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(render_profile(profile))
     return 0
@@ -227,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     p_profile = guide_sub.add_parser("profile", help="从对话文本生成能力画像")
     p_profile.add_argument("text", nargs="?", default="", help="对话内容（或用 --file）")
     p_profile.add_argument("--file", help="从文本文件读取对话内容")
+    p_profile.add_argument("--scan", help="授权扫描的材料目录（PDF / notebook / 笔记）")
     p_profile.add_argument("--json", action="store_true", help="输出 JSON（给 agent 或脚本用）")
     p_profile.set_defaults(func=cmd_guide_profile)
 

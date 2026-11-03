@@ -77,21 +77,41 @@ class Confidence(str, Enum):
         return {"unknown": "未知", "low": "低", "medium": "中", "high": "高"}[self.value]
 
 
+class Source(str, Enum):
+    """证据从哪来。三种来源必须分开展示，不混算成一个分数。
+
+    - ``SELF``      用户自述，最直接，但可能高估
+    - ``FILE``      用户授权扫描到的材料，只能证明「材料在」，不能证明「掌握了」
+    - ``INFERENCE`` 由规则/模型推断，可信度最低，必须标出来
+    """
+
+    SELF = "self"
+    FILE = "file"
+    INFERENCE = "inference"
+
+    @property
+    def label(self) -> str:
+        return {"self": "自述", "file": "文件", "inference": "推断"}[self.value]
+
+
 @dataclass
 class Signal:
-    """一条来自对话的证据。
+    """一条证据。
 
-    quote  必须是用户原话的**完整句子**，不改写、不摘要——用户要能一眼认出来这是自己说的。
+    quote  用户原话或文件里的片段，**不改写、不摘要**——用户要能一眼认出来。
     why    这条话为什么能说明水平，写给人看，也写给模型看。
+    source 证据来源；``FILE`` 的证据一定带 ``source_ref``（文件路径）。
     """
 
     rule_id: str
     dimension: Dimension
     level: Level
-    strength: str          # strong（明确陈述）/ weak（含糊表述）
+    strength: str          # strong（明确陈述）/ weak（含糊表述或文件旁证）
     quote: str
     why: str
     polarity: str = "positive"   # positive / negative。矛盾判定靠它，不靠档位差
+    source: Source = Source.SELF
+    source_ref: str = ""         # 文件证据的相对路径
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -102,6 +122,9 @@ class Signal:
             "level_label": self.level.label,
             "strength": self.strength,
             "polarity": self.polarity,
+            "source": self.source.value,
+            "source_label": self.source.label,
+            "source_ref": self.source_ref,
             "quote": self.quote,
             "why": self.why,
         }
@@ -166,10 +189,21 @@ class SkillProfile:
     dimensions: dict[Dimension, DimensionState] = field(default_factory=dict)
     text_length: int = 0
     notes: list[str] = field(default_factory=list)
+    scanned: dict[str, Any] = field(default_factory=dict)   # 授权扫描的摘要（目录/计数）
 
     @property
     def known(self) -> list[DimensionState]:
         return [d for d in self.dimensions.values() if d.is_known]
+
+    @property
+    def file_evidence(self) -> list[Signal]:
+        """来自授权文件的证据，单独列出来，不跟自述混算。"""
+        return [
+            s
+            for d in self.dimensions.values()
+            for s in d.signals
+            if s.source is Source.FILE
+        ]
 
     @property
     def unknown(self) -> list[DimensionState]:
@@ -206,5 +240,6 @@ class SkillProfile:
             "overall_label": self.overall.label,
             "text_length": self.text_length,
             "notes": self.notes,
+            "scanned": self.scanned,
             "dimensions": [d.to_dict() for d in self.dimensions.values()],
         }

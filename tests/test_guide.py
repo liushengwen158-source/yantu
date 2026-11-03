@@ -11,15 +11,20 @@ from __future__ import annotations
 
 import json
 import unittest
+from pathlib import Path
 
 from research_agent.guide import (
     Confidence,
     Dimension,
     Level,
+    Source,
     build_profile,
     merge_profiles,
     next_question,
+    scan_materials,
 )
+
+FIXTURES = Path(__file__).parent / "fixtures" / "guide_materials"
 
 
 class TestSignals(unittest.TestCase):
@@ -149,6 +154,57 @@ class TestMerge(unittest.TestCase):
         merged = merge_profiles(first, second)
         self.assertTrue(merged.dimensions[Dimension.ML].is_known)
         self.assertEqual(merged.dimensions[Dimension.ML].level, Level.WORKING)
+
+
+class TestMaterials(unittest.TestCase):
+    """授权扫描的边界：只能证明材料在，不能证明掌握。"""
+
+    def test_scan_counts_and_kinds(self) -> None:
+        scan = scan_materials(FIXTURES)
+        self.assertEqual(len(scan.by_kind("paper")), 2)
+        self.assertEqual(len(scan.by_kind("notebook")), 2)
+        self.assertEqual(sum(1 for p in scan.by_kind("paper") if p.has_note), 1)
+
+    def test_file_evidence_is_weak_and_attributed(self) -> None:
+        scan = scan_materials(FIXTURES)
+        self.assertTrue(scan.signals)
+        for s in scan.signals:
+            self.assertEqual(s.source, Source.FILE)
+            self.assertEqual(s.strength, "weak")
+            self.assertTrue(s.source_ref, "文件证据必须带路径，否则没法核对")
+
+    def test_training_loop_is_seen_but_two_notebooks_are_not_enough(self) -> None:
+        scan = scan_materials(FIXTURES)
+        ids = {s.rule_id for s in scan.signals}
+        self.assertIn("material.notebook_train", ids)
+        self.assertIn("material.papers_noted", ids)
+        self.assertNotIn("material.notebooks", ids, "只有 2 个 notebook，不该触发")
+
+    def test_missing_dir_raises(self) -> None:
+        with self.assertRaises(FileNotFoundError):
+            scan_materials(FIXTURES / "no-such-dir")
+
+    def test_file_only_profile_is_low_confidence(self) -> None:
+        scan = scan_materials(FIXTURES)
+        p = build_profile("", scan=scan)
+        dl = p.dimensions[Dimension.DL]
+        self.assertTrue(dl.is_known)
+        self.assertEqual(dl.confidence, Confidence.LOW)
+        self.assertIn("只有文件证据", dl.note)
+        self.assertTrue(p.scanned)
+        self.assertTrue(p.file_evidence)
+
+    def test_file_contradicting_self_report_is_surfaced(self) -> None:
+        """自述「没碰过」但目录里有训练 notebook：自述定档，冲突摆出来。"""
+        scan = scan_materials(FIXTURES)
+        p = build_profile("我没碰过深度学习。", scan=scan)
+        dl = p.dimensions[Dimension.DL]
+        self.assertEqual(dl.level, Level.BEGINNER)
+        self.assertTrue(any("文件证据" in c for c in dl.caveats))
+
+    def test_scan_is_json_serializable(self) -> None:
+        scan = scan_materials(FIXTURES)
+        json.dumps(scan.to_dict(), ensure_ascii=False)
 
 
 if __name__ == "__main__":

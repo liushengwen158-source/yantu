@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from .spec import Dimension, SkillProfile
+from .spec import Confidence, Dimension, SkillProfile, Source
 
 # 路线最先要用到的维度排前面：先环境，再框架，最后数学与论文
 PROBE_ORDER = [
@@ -64,15 +64,22 @@ def next_question(profile: SkillProfile) -> dict[str, str] | None:
             "reason": REASONS[dim],
         }
 
-    # 都定了档，只补「只有含糊表述」的那几维；明确说过的就不再追问
-    thin = [s for s in profile.known if s.confidence.value == "low"]
+    # 都定了档，只补「只有含糊表述」或「只有文件证据」的那几维；明确说过的就不再追问
+    thin = [s for s in profile.known if s.confidence is Confidence.LOW]
     if thin:
-        dim = thin[0].dimension
+        state = thin[0]
+        dim = state.dimension
+        only_file = all(s.source is Source.FILE for s in state.signals)
+        reason = (
+            "这一维目前只有文件证据，材料在不等同于会，确认一句才敢用来排路线"
+            if only_file
+            else "这一维只有含糊表述，再确认一句才敢用来排路线"
+        )
         return {
             "dimension": dim.value,
             "dimension_label": dim.label,
             "question": PROBES[dim],
-            "reason": "这一维只有含糊表述，再确认一句才敢用来排路线",
+            "reason": reason,
         }
 
     return None
