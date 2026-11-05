@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "note": "测试用最小概念库：含一处环形前置（a ↔ b），用来验证体检能不能抓出来",
+  "concepts": [
+    {"id": "a", "name": "终端基本操作", "aliases": ["shell"], "dimension": "tools", "stage": "stage0",
+     "one_liner": "用命令操作文件", "prereq": ["b"], "next": ["c"]},
+    {"id": "b", "name": "PATH 与环境变量", "aliases": ["PATH"], "dimension": "tools", "stage": "stage0",
+     "one_liner": "系统按 PATH 找可执行文件", "prereq": ["a"], "next": ["c"]},
+    {"id": "c", "name": "虚拟环境", "aliases": ["venv"], "dimension": "coding", "stage": "stage0",
+     "one_liner": "每个项目一套独立解释器", "prereq": ["a"], "next": ["d"]},
+    {"id": "d", "name": "CUDA 与驱动", "aliases": ["cuda"], "dimension": "dl", "stage": "stage1",
+     "one_liner": "GPU 计算的前置", "prereq": ["c"], "next": []},
+    {"id": "e", "name": "可复现性", "aliases": ["reproducibility"], "dimension": "research", "stage": "stage2",
+     "one_liner": "别人能跑出同样的结果", "prereq": ["c"], "next": []}
+  ]
+}

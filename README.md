@@ -56,6 +56,22 @@ python cli.py paper diff /path/to/repo
 
 # 输出完整可行性报告（Markdown）
 python cli.py paper report /path/to/repo --out report.md
+
+# 文献检索：候选列表 + 本次检索式 + 各源覆盖度
+python cli.py lit search "retrieval augmented generation"
+
+# 四档阅读建议（精读 / 略读 / 搁置 / 不读），每条附判定理由
+python cli.py lit triage "diffusion policy robot manipulation" --limit 20
+
+# 以一篇论文为种子，拉引用关系
+python cli.py lit expand "Deep learning" --doi 10.1038/nature14539
+
+# 生成可离线打开的关系图 / Markdown 报告
+python cli.py lit map "retrieval augmented generation" --out lit-map.html
+python cli.py lit report "retrieval augmented generation" --out lit-report.md
+
+# 只用本地缓存，不发网络请求（做法可复现的演示、或断网时）
+python cli.py lit search "retrieval augmented generation" --offline
 ```
 
 ### 接入模型
@@ -89,7 +105,7 @@ git clone --depth 1 https://github.com/openJiuwen-ai/agent-core.git openjiuwen
 
 ### 适配层
 
-`research_agent/agent_core.py` 把两类能力注册成一个 ReAct agent（`yantu_agent`），共 8 个工具：
+`research_agent/agent_core.py` 把三类能力注册成一个 ReAct agent（`yantu_agent`），共 12 个工具：
 
 | 分组 | 工具 | 作用 |
 | --- | --- | --- |
@@ -101,6 +117,10 @@ git clone --depth 1 https://github.com/openJiuwen-ai/agent-core.git openjiuwen
 | 复现 | `repro_scan` | 从论文仓库提取环境需求（带文件名:行号） |
 | 复现 | `repro_diff` | 与本机比对，给四档结论与差距矩阵 |
 | 复现 | `repro_report` | 生成完整的 Markdown 可行性报告 |
+| 文献 | `lit_search` | 多源检索文献，带检索式与覆盖度 |
+| 文献 | `lit_triage` | 四档阅读建议（精读/略读/搁置/不读）与理由 |
+| 文献 | `lit_expand` | 种子论文 → 引用关系图（上游/下游/近邻/耦合） |
+| 文献 | `lit_report` | 生成 Markdown 文献速览报告 |
 
 实现方式：
 
@@ -108,19 +128,22 @@ git clone --depth 1 https://github.com/openJiuwen-ai/agent-core.git openjiuwen
 - `ReActAgent(card=AgentCard(...))` + `ReActAgentConfig` 配置模型与系统提示词
 - `agent.ability_manager.add_ability(t.card, t)` 注册工具
 
-系统提示词里写死了两条行为约束，避免模型即兴发挥：
+系统提示词里写死了几条行为约束，避免模型即兴发挥：
 
 - 问「这篇论文的代码我能不能跑」→ 先调 `repro_diff`，不许凭经验判断
 - 引用复现结论必须带来源（`README.md:5`）和可信度（L2/L3）；仓库里没写的，直说没写
+- 问「有哪些论文」→ 先 `lit_search` / `lit_triage`，不许凭记忆报论文名
+  （模型凭印象报出的标题和年份经常错配），并且必须把覆盖度一起说出来
 
-已验证：agent 构建成功，8 个工具全部注册进 `ability_manager` 与 `resource_mgr`：
+已验证：agent 构建成功，12 个工具全部注册进 `ability_manager` 与 `resource_mgr`：
 
 ```
 names = ['env_check', 'env_guidance', 'env_explain', 'env_plan', 'env_fix',
-         'repro_scan', 'repro_diff', 'repro_report']
+         'repro_scan', 'repro_diff', 'repro_report',
+         'lit_search', 'lit_triage', 'lit_expand', 'lit_report']
 ```
 
-工具函数本体分别在 `tools/env_tools.py` 与 `tools/repro_tools.py`，都是纯 Python，可脱离框架单独测试。
+工具函数本体分别在 `tools/env_tools.py`、`tools/repro_tools.py` 与 `tools/lit_tools.py`，都是纯 Python，可脱离框架单独测试。
 
 ## 作为技能使用
 
@@ -233,6 +256,84 @@ python -m unittest discover -s tests -v
 - `torch` 之外只对 `tensorflow` / `jax` 等做了版本提取，判定侧目前只探测了 torch 的安装情况
 - 不做依赖求解（`pip` 冲突、conda 环境解析交给专门工具）
 
+## 文献检索与关联
+
+新手真正缺的不是论文，是**先读哪篇**、以及**这些论文之间是什么关系**。这个模块做这两件事。
+
+### 三个源，一条降级链
+
+默认顺序不是拍脑袋定的，是按本机实测的可靠性与信息量排的：
+
+| 顺序 | 源 | 给什么 | 实测坑 |
+| --- | --- | --- | --- |
+| 1 | OpenAlex | 覆盖面最广，自带 `referenced_works` / `cites` / `related_works`，画图靠它 | 匿名**检索**被限流（429 + `retryAfter`），规模化要配 `OPENALEX_API_KEY` |
+| 2 | Crossref | DOI 权威、元数据准，用来补身份 | 相关性排序不可信；单条查询经常 20~45s 超时 |
+| 3 | arXiv | 唯一能拿到最新预印本（比正式发表早 6~18 个月） | 礼节性限速 3 秒/请求；`http://export.arxiv.org` 直接超时 |
+
+任一源失败**不报错**，而是记进 `Coverage` 然后继续用下一个——报告里会明写
+「降级：crossref、arxiv 可用，openalex 不可用，结果可能不完整」。不假装检索过整个领域。
+
+### 检索层不信服务端排序
+
+实测反例（2026-11-05）：Crossref 查 `retrieval augmented generation`，
+返回结果包含「投影缀加平面波方法」「新一代测序」——它把查询拆词后，
+被 `augmented` / `generation` 带偏了。所以检索层做三层：
+
+1. **宽召回**：每个源多给一点，不指望第一次就准；
+2. **本地过滤**：按问题词在标题/摘要里的覆盖度打分，零分的直接丢，
+   并如实报数（「共取回 40 条，过滤后保留 39 条，丢弃 1 条偏题结果」）；
+3. **合并去重**：交给 `identity.resolve`——DOI / arXiv ID 优先，标题指纹撞上但 id 不同时
+   **只标不并**（合并错了会把「被引 3 次」算成「被引 300 次」，不可逆）。
+
+### 四档阅读建议
+
+不打「重要性 8.5 分」这种没法核对的分数，而是四档 + 可核对的信号：
+
+| 档 | 触发条件（按顺序命中） |
+| --- | --- |
+| 现在精读 | 综述且相关度 ≥ 0.4；或高被引（≥1 万次）且相关度 ≥ 0.4 |
+| 快速略读 | 很新（近 2 年）且相关度 ≥ 0.6——还没被引用验证，先知道结论 |
+| 先搁置 | 相关但信号都弱——**该读但现在读不动/读不起**，不是不相关 |
+| 不必读 | 相关度 < 0.25；或既旧又没人引 |
+
+两个踩过的坑写在代码注释里，这里也留一笔：
+
+- 「被引」不能用批内最大值归一，否则**批内第一名永远满分**，一篇 1 次引用的新论文
+  会被判成「奠基工作」。改成绝对标尺：1 万次被引 = 1.0，100 次 ≈ 0.5。
+- **未知被引不能当 0**。arXiv 的 API 不返回被引数，当成 0 会让所有预印本被系统性压后
+  （实测：问 RAG，前 8 条全是 2026 年的 CRC 书章节，真正该读的 arXiv 论文一条没进）。
+  未知给中性值 0.4，理由里写明「被引数未知（该源不提供）」。
+
+### 引用关系图
+
+四种关系分开存、分开画，混在一起就没人能解释这张图：
+
+| 关系 | 含义 | 来源 |
+| --- | --- | --- |
+| `cites` | 种子引用了它——**地基** | OpenAlex `referenced_works` |
+| `cited_by` | 它引用了种子——**后续** | OpenAlex `filter=cites:W…` |
+| `similar` | 站方推荐近邻，**相似 ≠ 因果** | OpenAlex `related_works` |
+| `coupling` | 两篇共享 ≥2 篇参考文献——才是「同一条技术路线」 | 由 `referenced_works` 二次计算 |
+
+布局是**确定性**的（按年份分列，不做力导向）：力导向图好看，但读不出「哪条线在往前走」；
+确定性布局让同一份数据每次画出来一模一样，方便复核。
+
+实测（种子 = LeCun《Deep learning》，Nature 2015）：53 个节点、183 条边、0 个孤立点，
+其中 1 条 OpenAlex 的「论文集壳子」记录（无作者/无摘要/无参考文献）被识别并丢弃。
+
+### 输出三档
+
+| 档 | 形态 | 用在哪 |
+| --- | --- | --- |
+| A | 静态 SVG 字符串 | 塞进 Markdown 报告、贴进对话 |
+| B | 单文件 HTML（内联 SVG + 极少 vanilla JS，**无 CDN**） | 本地打开，hover 看详情，断网可用 |
+| C | 结构化 dict / 快照 JSON | 交给别的工具，或做可复现演示 |
+
+`save_snapshot()` 会把一次检索的检索式、时间、覆盖度、命中全部落盘，
+`load_snapshot()` 可以重放出完全一样的结果——「可复现检索」是这个模块的设计目标之一。
+
+
+
 ## 目录结构
 
 ```
@@ -257,17 +358,28 @@ yantu/
 │   │   ├── profile.py             # 本机 → 画像（含磁盘/内存/容器）
 │   │   ├── diff.py                # 四档判定 + 修复建议
 │   │   └── render.py              # 差距矩阵 / Markdown 报告
+│   ├── litreview/                 # 文献检索与关联
+│   │   ├── spec.py                # 数据契约（PaperRef / Retrieval / Edge / Triage）
+│   │   ├── identity.py            # 跨源身份对齐（DOI > arXiv > 标题指纹，只标不并）
+│   │   ├── cache.py               # 响应缓存 + 离线模式（测试不联网靠它）
+│   │   ├── sources/               # 三个源适配器（arxiv / openalex / crossref）
+│   │   ├── search.py              # 宽召回 → 本地过滤 → 对齐 → 覆盖度
+│   │   ├── graph.py               # 建图：上游 / 下游 / 近邻 / 文献耦合
+│   │   ├── triage.py              # 四档阅读建议（信号可核对）
+│   │   └── render.py              # SVG / 单文件 HTML / Markdown 报告
 │   ├── tools/env_tools.py         # 纯 Python 工具函数（可单独测试）
 │   ├── tools/repro_tools.py       # 复现工具函数（agent 用）
-│   ├── agent_core.py              # openJiuwen 适配层（ReActAgent + 8 个工具）
+│   ├── tools/lit_tools.py         # 文献工具函数（agent 用）
+│   ├── agent_core.py              # openJiuwen 适配层（ReActAgent + 12 个工具）
 │   ├── agent.py                   # 问答层（有 Key 走模型，无 Key 走检索）
 │   └── llm.py                     # OpenAI 兼容客户端
 ├── skills/env-setup/              # 可被 JiuwenSwarm 直接调用的技能包
 │   ├── SKILL.md
 │   └── scripts/env_setup.py
 ├── tests/
-│   ├── fixtures/                  # 回归用的仓库样本
-│   └── test_repro.py              # 12 项单元测试
+│   ├── fixtures/                  # 回归用的仓库样本 + 文献响应快照
+│   ├── test_repro.py              # 12 项单元测试
+│   └── test_lit.py                # 26 项单元测试（全程不联网，走 fixtures）
 └── cli.py                         # 命令行入口
 ```
 

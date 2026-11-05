@@ -7,3 +7,9 @@ __pycache__/
 
 # openJiuwen 源码是独立仓库，不做嵌套版本管理
 openjiuwen/
+
+# 文献模块的缓存与生成物：可随时重跑出来，不进版本库
+.cache/
+lit-map.html
+concept-map.html
+lit-report.md

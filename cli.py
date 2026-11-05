@@ -145,6 +145,176 @@ def cmd_paper_report(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# 文献检索与关联（lit）
+# ---------------------------------------------------------------------------
+
+def _coverage_line(retrieval) -> str:
+    parts = []
+    for s in retrieval.coverage.statuses:
+        detail = f"{s.count} 条" if s.ok else (s.error or "无结果")
+        parts.append(f"{s.source.label} {'✓' if s.ok else '✗'} {detail}")
+    return "　".join(parts) + f"（{retrieval.coverage.note()}）"
+
+
+def cmd_lit_search(args: argparse.Namespace) -> int:
+    from research_agent.litreview import search
+
+    retrieval = search(args.question, limit=args.limit, year_from=args.year_from or None,
+                       offline=args.offline)
+    if args.json:
+        print(json.dumps(retrieval.to_dict(), ensure_ascii=False, indent=2))
+        return 0 if retrieval.papers else 1
+
+    print(f"检索式：{'；'.join(retrieval.queries)}")
+    print(f"覆盖度：{_coverage_line(retrieval)}")
+    if retrieval.dropped:
+        print(f"过滤：丢弃 {retrieval.dropped} 条与本问题无关的结果")
+    print()
+    for i, p in enumerate(retrieval.papers, 1):
+        tag = "【综述】" if p.is_survey else ""
+        cited = f"被引 {p.cited_by}" if p.cited_known else "被引数未知"
+        print(f"{i:>2}. {p.title} {tag}")
+        print(f"    {p.year or '—'} · {p.venue or p.source.label} · {cited} · {p.url}")
+    if not retrieval.papers:
+        print("没有结果。检查网络 / API key，或把问题写具体一点。")
+    for w in retrieval.warnings:
+        print(f"! {w}")
+    return 0 if retrieval.papers else 1
+
+
+def cmd_lit_triage(args: argparse.Namespace) -> int:
+    from research_agent.litreview import search, triage
+
+    retrieval = search(args.question, limit=args.limit, year_from=args.year_from or None,
+                       offline=args.offline)
+    if not retrieval.papers:
+        print(f"没有可用文献。{_coverage_line(retrieval)}")
+        return 1
+    triaged = triage(retrieval.papers, retrieval.question)
+    if args.json:
+        print(json.dumps([t.to_dict() for t in triaged], ensure_ascii=False, indent=2))
+        return 0
+
+    print(f"覆盖度：{_coverage_line(retrieval)}\n")
+    current = None
+    for t in triaged:
+        if t.verdict is not current:
+            current = t.verdict
+            print(f"== {current.label} ==")
+        print(f"  · {t.paper.title}")
+        print(f"    {t.reason}")
+        if t.read_for:
+            print(f"    读它为了：{t.read_for}")
+    return 0
+
+
+def cmd_lit_expand(args: argparse.Namespace) -> int:
+    from research_agent.litreview import expand
+    from research_agent.litreview.spec import PaperRef, Source
+
+    seed = PaperRef(source=Source.OPENALEX if args.doi else Source.CROSSREF,
+                    source_id=args.doi or args.title[:80], title=args.title, doi=args.doi)
+    graph = expand(seed, offline=args.offline)
+    if args.json:
+        print(json.dumps(graph.to_dict(), ensure_ascii=False, indent=2))
+        return 0 if graph.nodes else 1
+
+    if not graph.nodes:
+        print("没能建立关系图。")
+        for w in graph.warnings:
+            print(f"! {w}")
+        return 1
+    deg = graph.degree()
+    if args.out:
+        from pathlib import Path
+
+        from research_agent.litreview.render import REL_COLOR, html_page, legend, papers_svg
+        from research_agent.litreview.spec import Relation
+
+        edge_tuples = [(e.src, e.dst, e.relation) for e in graph.edges]
+        svg = papers_svg(list(graph.nodes.items()), edges=edge_tuples)
+        body = (
+            f'<div class="facts">种子：{graph.nodes[graph.seed].short(90)}　'
+            f'节点 {len(graph.nodes)}　边 {len(graph.edges)}　'
+            f'提示：{"；".join(graph.warnings) or "无异常"}</div>'
+            + svg
+            + legend(
+                [
+                    ("引用（种子引用的文献）", REL_COLOR[Relation.CITES]),
+                    ("被引（引用种子的文献）", REL_COLOR[Relation.CITED_BY]),
+                    ("相似（站方推荐，不等于因果）", REL_COLOR[Relation.SIMILAR]),
+                    ("文献耦合（共享 ≥2 篇参考文献）", REL_COLOR[Relation.COUPLING]),
+                ],
+                tail="横轴 = 发表年份；圆越大被引越多",
+            )
+        )
+        Path(args.out).write_text(
+            html_page("研途 · 引用关系图", graph.seed, [("引用关系", body)]), encoding="utf-8"
+        )
+        print(f"已写出 {args.out}（{len(graph.nodes)} 节点 / {len(graph.edges)} 边）")
+        return 0
+
+    print(f"种子：{graph.seed}")
+    print(f"节点 {len(graph.nodes)}，边 {len(graph.edges)}，"
+          f"孤立点 {sum(1 for d in deg.values() if d == 0)}")
+    for e in graph.edges[:40]:
+        src = graph.nodes[e.src].short(38)
+        dst = graph.nodes[e.dst].short(38)
+        print(f"  {e.relation.label:<6} {src}  →  {dst}")
+    if len(graph.edges) > 40:
+        print(f"  …（共 {len(graph.edges)} 条边，用 --json 看全部）")
+    for w in graph.warnings:
+        print(f"! {w}")
+    return 0
+
+
+def cmd_lit_map(args: argparse.Namespace) -> int:
+    from research_agent.tools.lit_tools import lit_map
+
+    res = lit_map(args.question, limit=args.limit, year_from=args.year_from or None,
+                  out=args.out, offline=args.offline)
+    if args.json:
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+    elif res.get("ok"):
+        print(f"已写出 {res['path']}")
+    else:
+        print(f"失败：{res.get('error')}")
+    return 0 if res.get("ok") else 1
+
+
+def cmd_lit_concept(args: argparse.Namespace) -> int:
+    from research_agent.tools.lit_tools import lit_concept_map
+
+    res = lit_concept_map(concepts_path=args.concepts, out=args.out)
+    if not res.get("ok"):
+        print(f"失败：{res.get('error')}")
+        print(f"提示：{res.get('hint', '')}")
+        return 1
+    stats = res["stats"]
+    print(f"概念 {stats['concepts']} 个 / 前置边 {stats['edges']} 条 / "
+          f"根节点 {stats['roots']} / 跨维度 {stats['cross_dimension']}")
+    for comp in stats["cycles"]:
+        print(f"! 环形依赖：{' ↔ '.join(comp)}（互为前置，按图学会卡死）")
+    print(f"已写出 {res['path']}")
+    return 0
+
+
+def cmd_lit_report(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from research_agent.litreview import search, triage
+    from research_agent.litreview.render import markdown_report
+
+    retrieval = search(args.question, limit=args.limit, year_from=args.year_from or None,
+                       offline=args.offline)
+    triaged = triage(retrieval.papers, retrieval.question) if retrieval.papers else []
+    text = markdown_report(retrieval, triaged)
+    Path(args.out).write_text(text, encoding="utf-8")
+    print(f"报告已写入 {args.out}（{len(retrieval.papers)} 篇）")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     _ensure_console_encoding()
     parser = argparse.ArgumentParser(
@@ -189,6 +359,56 @@ def main(argv: list[str] | None = None) -> int:
     p_report.add_argument("repo")
     p_report.add_argument("--out", help="写入指定文件")
     p_report.set_defaults(func=cmd_paper_report)
+
+    # ---- 文献检索与关联 ----------------------------------------------
+    p_lit = sub.add_parser("lit", help="文献检索与关联：搜、排、画")
+    lit_sub = p_lit.add_subparsers(dest="lit_command", required=True)
+
+    p_ls = lit_sub.add_parser("search", help="检索文献，输出候选与覆盖度")
+    p_ls.add_argument("question", help="研究问题或关键词")
+    p_ls.add_argument("--limit", type=int, default=15)
+    p_ls.add_argument("--year-from", type=int, default=0, help="只要这一年及以后的")
+    p_ls.add_argument("--offline", action="store_true", help="只用本地缓存")
+    p_ls.add_argument("--json", action="store_true")
+    p_ls.set_defaults(func=cmd_lit_search)
+
+    p_lt = lit_sub.add_parser("triage", help="给出四档阅读建议")
+    p_lt.add_argument("question")
+    p_lt.add_argument("--limit", type=int, default=15)
+    p_lt.add_argument("--year-from", type=int, default=0)
+    p_lt.add_argument("--offline", action="store_true")
+    p_lt.add_argument("--json", action="store_true")
+    p_lt.set_defaults(func=cmd_lit_triage)
+
+    p_le = lit_sub.add_parser("expand", help="以一篇论文为种子，拉引用关系图")
+    p_le.add_argument("title", help="种子论文标题")
+    p_le.add_argument("--doi", default="", help="有 DOI 就优先用")
+    p_le.add_argument("--offline", action="store_true")
+    p_le.add_argument("--out", default="", help="同时写出可交互 HTML 关系图")
+    p_le.add_argument("--json", action="store_true")
+    p_le.set_defaults(func=cmd_lit_expand)
+
+    p_lm = lit_sub.add_parser("map", help="生成可离线打开的文献关系图 HTML")
+    p_lm.add_argument("question")
+    p_lm.add_argument("--limit", type=int, default=15)
+    p_lm.add_argument("--year-from", type=int, default=0)
+    p_lm.add_argument("--out", default="lit-map.html")
+    p_lm.add_argument("--offline", action="store_true", help="只用本地缓存")
+    p_lm.add_argument("--json", action="store_true")
+    p_lm.set_defaults(func=cmd_lit_map)
+
+    p_lc = lit_sub.add_parser("concept", help="画概念前置图（需要 learning-guide 的概念库）")
+    p_lc.add_argument("--concepts", default="", help="concepts.json 路径")
+    p_lc.add_argument("--out", default="concept-map.html")
+    p_lc.set_defaults(func=cmd_lit_concept)
+
+    p_lr = lit_sub.add_parser("report", help="生成 Markdown 文献速览报告")
+    p_lr.add_argument("question")
+    p_lr.add_argument("--limit", type=int, default=15)
+    p_lr.add_argument("--year-from", type=int, default=0)
+    p_lr.add_argument("--offline", action="store_true")
+    p_lr.add_argument("--out", default="lit-report.md")
+    p_lr.set_defaults(func=cmd_lit_report)
 
     args = parser.parse_args(argv)
     return args.func(args)

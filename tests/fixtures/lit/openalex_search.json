@@ -1,0 +1,38 @@
+{
+ "meta": {"count": 2, "db_response_time_ms": 12},
+ "results": [
+  {
+   "id": "https://openalex.org/W1000000001",
+   "doi": "https://doi.org/10.1000/abc.2023.1",
+   "display_name": "Retrieval-Augmented Generation for Knowledge-Intensive NLP",
+   "publication_year": 2023,
+   "cited_by_count": 120,
+   "type": "article",
+   "primary_location": {"source": {"display_name": "NeurIPS"}},
+   "authorships": [
+    {"author": {"display_name": "A. Researcher"}},
+    {"author": {"display_name": "B. Researcher"}}
+   ],
+   "abstract_inverted_index": {"retrieval": [0], "augmented": [1], "generation": [2], "for": [3], "knowledge": [4]},
+   "referenced_works": ["https://openalex.org/W2000000001", "https://openalex.org/W2000000002"],
+   "related_works": ["https://openalex.org/W3000000001"],
+   "topics": [{"display_name": "Natural Language Processing"}],
+   "is_retracted": false
+  },
+  {
+   "id": "https://openalex.org/W1000000002",
+   "doi": "",
+   "display_name": "A Survey of Retrieval Augmented Generation",
+   "publication_year": 2024,
+   "cited_by_count": 5,
+   "type": "review",
+   "primary_location": {"source": {"display_name": "arXiv"}},
+   "authorships": [{"author": {"display_name": "C. Researcher"}}],
+   "abstract_inverted_index": null,
+   "referenced_works": [],
+   "related_works": [],
+   "topics": [],
+   "is_retracted": false
+  }
+ ]
+}

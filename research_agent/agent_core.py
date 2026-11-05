@@ -19,9 +19,10 @@ from typing import Any
 
 from . import llm
 from .tools.env_tools import env_check, env_explain, env_fix, env_guidance, env_plan
+from .tools.lit_tools import lit_expand, lit_report, lit_search, lit_triage
 from .tools.repro_tools import repro_diff, repro_report, repro_scan
 
-SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，负责两件事：**开发环境配置**与**论文复现可行性判断**。
+SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，负责三件事：**开发环境配置**、**论文复现可行性判断**与**文献检索与关联**。
 
 环境工具：
 - env_check：体检本机环境，返回 Python/pip/conda/Git/SSH/GPU/CUDA/PyTorch 的真实状态
@@ -35,6 +36,12 @@ SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，�
 - repro_diff：把需求与本机比对，给出四档结论：block 物理不可能 / degrade 改配置能跑 / add 装一下即可 / ok 满足
 - repro_report：输出完整的 Markdown 可行性报告
 
+文献工具（不需要用户提供任何本地文件）：
+- lit_search：检索文献，同时返回本次检索式与各来源覆盖度；某个源被限流/超时会写明并降级
+- lit_triage：给出四档阅读建议 read_now / skim / park / drop，每条都附判定理由
+- lit_expand：以一篇论文为种子，拉引用关系（上游引用 / 下游被引 / 近邻 / 文献耦合）
+- lit_report：生成 Markdown 文献速览报告
+
 工作方式：
 1. 用户问环境问题时，先 env_check 或 env_guidance 拿到事实，再回答，不要凭印象猜测。
 2. 用户问「这篇论文的代码我能不能跑」时，先 repro_diff，不要凭经验判断。
@@ -43,7 +50,12 @@ SYSTEM_PROMPT = """你是「研途」，面向计算机科研新手的助手，�
 5. 复现结论要分清程度：卡数不够、显存差 6 倍以上属于物理阻塞，直说要换算力；版本不符属于装一下就好，别夸大。
 6. 引用复现证据时带上来源（如 README.md:5）和可信度（L2 代码推断 / L3 经验推测）。
 7. 仓库里没写、工具没返回的信息，直说不知道，不要编造版本号、卡数或命令。
-8. 回答简洁：先结论，再步骤，命令用代码块。
+8. 用户问「有哪些论文」「这个方向怎么入门」时，先 lit_search 或 lit_triage 拿真实结果，
+   不要凭记忆报论文名——模型凭印象报出的标题和年份经常是错配的。
+9. 转述文献时只讲工具返回过的内容：标题、年份、来源、被引数、链接。工具没返回摘要内容，
+   就不要总结它的方法；用户要方法细节，只能说"需要读原文"。
+10. 每次给文献建议都要带上覆盖度：哪个源不可用、丢掉了多少偏题结果。不要假装检索过整个领域。
+11. 回答简洁：先结论，再步骤，命令用代码块。
 """
 
 
@@ -171,6 +183,78 @@ def build_tools():
         """
         return _dump(repro_report(repo_path), limit=8000)
 
+    # ---- 文献检索与关联 ------------------------------------------------
+
+    @tool(
+        name="lit_search",
+        description=(
+            "检索学术文献，返回候选列表、本次实际使用的检索式、以及各来源的覆盖度。"
+            "来源包括 OpenAlex、Crossref、arXiv，某个源失败会在 coverage 里写明并降级。"
+            "用户问「这个方向有哪些论文」「帮我找 XX 的工作」时用这个。"
+        ),
+    )
+    def lit_search_tool(question: str, limit: int = 15, year_from: int = 0) -> str:
+        """检索文献。
+
+        Args:
+            question: 研究问题或关键词，中英文都行
+            limit: 返回条数上限，默认 15
+            year_from: 只要这一年及以后的文献，0 表示不限
+        """
+        return _dump(lit_search(question, limit=limit, year_from=year_from))
+
+    @tool(
+        name="lit_triage",
+        description=(
+            "检索并给出四档阅读建议：read_now（现在精读）/ skim（快速略读）/ "
+            "park（先搁置，重要但现在读不动）/ drop（不必读）。每条的判定理由都写明用的是"
+            "哪个信号（相关度、年份、被引、是否综述），可以直接转述给用户。"
+        ),
+    )
+    def lit_triage_tool(question: str, limit: int = 15, year_from: int = 0) -> str:
+        """给出阅读优先级。
+
+        Args:
+            question: 研究问题
+            limit: 参与评估的文献数
+            year_from: 年份下限，0 表示不限
+        """
+        return _dump(lit_triage(question, limit=limit, year_from=year_from))
+
+    @tool(
+        name="lit_expand",
+        description=(
+            "以一篇论文为种子，拉出它的引用关系：上游（它引用的）、下游（引用它的）、"
+            "近邻（站方推荐的相似文献）、文献耦合（共享参考文献的同期文献）。"
+            "每条边都带来源。用户问「这个方向是怎么发展起来的」「谁在跟进」时用这个。"
+        ),
+    )
+    def lit_expand_tool(title: str, doi: str = "") -> str:
+        """构建文献关系图数据。
+
+        Args:
+            title: 种子论文标题
+            doi: 种子论文 DOI，有就优先用（对齐更准）
+        """
+        return _dump(lit_expand(title, doi=doi))
+
+    @tool(
+        name="lit_report",
+        description=(
+            "生成 Markdown 文献速览报告：检索式、时间、覆盖度、四档阅读建议和链接。"
+            "适合用户要把调研结果存档或发给别人时使用。"
+        ),
+    )
+    def lit_report_tool(question: str, limit: int = 15, out: str = "") -> str:
+        """生成文献速览报告。
+
+        Args:
+            question: 研究问题
+            limit: 文献数
+            out: 输出路径，留空则写到当前目录 lit-report.md
+        """
+        return _dump(lit_report(question, limit=limit, out=out), limit=8000)
+
     return [
         env_check_tool,
         env_guidance_tool,
@@ -180,6 +264,10 @@ def build_tools():
         repro_scan_tool,
         repro_diff_tool,
         repro_report_tool,
+        lit_search_tool,
+        lit_triage_tool,
+        lit_expand_tool,
+        lit_report_tool,
     ]
 
 

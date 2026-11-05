@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <title>arXiv Query</title>
+  <entry>
+    <id>http://arxiv.org/abs/2401.01234v2</id>
+    <published>2024-01-02T00:00:00Z</published>
+    <title>Diffusion Policy for Robotic Manipulation: A Survey</title>
+    <summary>We survey diffusion based policies for robot manipulation.</summary>
+    <author><name>Ada Lovelace</name></author>
+    <author><name>Alan Turing</name></author>
+    <arxiv:primary_category term="cs.RO"/>
+    <arxiv:comment>12 pages</arxiv:comment>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2305.06983v1</id>
+    <published>2023-05-11T00:00:00Z</published>
+    <title>Efficient Retrieval Augmented Generation with Chunked Contexts</title>
+    <summary>We study chunking strategies for retrieval augmented generation.</summary>
+    <author><name>Grace Hopper</name></author>
+    <arxiv:primary_category term="cs.CL"/>
+  </entry>
+</feed>
